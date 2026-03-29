@@ -1,0 +1,24 @@
+const StarIcon = () => (
+    <svg
+        width="40"
+        height="40"
+        viewBox="0 0 28 28"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="animate-pulse-loading"
+    >
+        <path
+            d="M15 0C15 4.90137 15.9863 8.07226 17.957 10.043C19.9277 12.0137 23.0986 13 28 13V15C23.0986 15 19.9277 15.9863 17.957 17.957C15.9863 19.9277 15 23.0986 15 28H13C13 23.0986 12.0137 19.9277 10.043 17.957C8.07226 15.9863 4.90137 15 0 15V13C4.90137 13 8.07226 12.0137 10.043 10.043C12.0137 8.07226 13 4.90137 13 0H15Z"
+            stroke="white"
+            strokeWidth="2"
+        />
+    </svg>
+);
+
+export default function LoadingScreen() {
+    return (
+        <div className="w-full h-screen flex justify-center items-center bg-dark-star">
+            <StarIcon />
+        </div>
+    );
+}

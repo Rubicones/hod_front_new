@@ -1,0 +1,113 @@
+{
+  "layout": {
+    "title": "Hod",
+    "description": "Initiative tracker for dnd"
+  },
+  "nav": {
+    "back": "Back",
+    "end": "End",
+    "backHome": "Back to home",
+    "backToSession": "Back to session",
+    "share": "Share",
+    "cancel": "Cancel",
+    "done": "Done",
+    "round": "Round {number}",
+    "gameCode": "Game code",
+    "settingsTitle": "Settings"
+  },
+  "home": {
+    "hello": "Hello, {name}!",
+    "subtitle": "Time to make a choice",
+    "create": "Create game",
+    "creatingGame": "Creating...",
+    "join": "Join game",
+    "rejoin": "Rejoin the last session",
+    "friendFallback": "friend"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "login": "Log in",
+    "signup": "Sign up",
+    "logout": "Log out",
+    "loggingIn": "Logging in...",
+    "signUpCta": "Sign up",
+    "invalidCredentials": "Invalid email or password",
+    "loginError": "An error occurred during login",
+    "signupTitle": "Sign up",
+    "passwordsMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "registrationFailed": "Registration failed",
+    "passwordHint": "Choose a secure password (at least 8 characters).",
+    "confirmPasswordHint": "Please enter the same password again to avoid errors.",
+    "registrationCompleteTitle": "Registration completed",
+    "registrationCompleteBody": "Now you can log in to your account. Welcome!",
+    "creatingAccount": "Creating account...",
+    "continue": "Continue",
+    "confirmPassword": "Confirm password"
+  },
+  "game": {
+    "newSession": "New Session",
+    "sessionTitle": "Session {code}",
+    "addMore": "Add more",
+    "startGame": "Start game",
+    "startFight": "Start a fight!",
+    "startingFight": "Starting…",
+    "fightName": "Fight scene name",
+    "addToFight": "Add",
+    "remove": "Remove"
+  },
+  "card": {
+    "characterName": "Character name",
+    "playerName": "Player name",
+    "monster": "Monster",
+    "hp": "HP",
+    "armor": "AC",
+    "initiative": "Initiative",
+    "concentration": "Concentration"
+  },
+  "effects": {
+  "title": "Effects",
+  "empty": "No effects applied",
+  "close": "Close"
+  },
+  "settings": {
+    "description": "Choose what info will appear in your profile",
+    "gamesLabel": "Number of games",
+    "hoursLabel": "Hours in game",
+    "nothingLabel": "Nothing",
+    "languageDescription": "Pick the preferred language",
+    "languageRussian": "Russian",
+    "languageEnglish": "English",
+    "changePassword": "Change password",
+    "signOut": "Sign out"
+  },
+  "profile": {
+    "totalGames": "Total games",
+    "hoursInGame": "Hours in game",
+    "settingsButton": "Settings"
+  },
+  "join": {
+    "description": "Ask the master for an invitation code and enter it in the field below. You can also scan the QR code from the host's device!",
+    "placeholder": "Game code",
+    "join": "Join",
+    "joining": "Joining..."
+  },
+  "desktop": {
+    "title": "Not ready for desktop yet",
+    "subtitle": "Please use a mobile device or resize your window"
+  },
+  "errors": {
+    "sessionNotFound": "Session not found",
+    "roomNotFound": "Room not found",
+    "sessionNotFoundDetailed": "Session not found. Check the code and try again.",
+    "failedToJoin": "Failed to join session",
+    "failedToStartFight": "Failed to start fight",
+    "failedToFetchGames": "Failed to fetch games",
+    "failedToCreateGame": "Failed to create game",
+    "failedToLoadSession": "Failed to load session",
+    "failedToLoadRoom": "Failed to load room"
+  }
+}
+
+

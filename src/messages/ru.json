@@ -1,0 +1,113 @@
+{
+  "layout": {
+    "title": "Ход",
+    "description": "Трекер инициативы для ДнД"
+  },
+  "nav": {
+    "back": "Назад",
+    "end": "Завершить",
+    "backHome": "Домой",
+    "backToSession": "Назад в сессию",
+    "share": "Поделиться",
+    "cancel": "Отмена",
+    "done": "Готово",
+    "round": "Раунд {number}",
+    "gameCode": "Код игры",
+    "settingsTitle": "Настройки"
+  },
+  "home": {
+    "hello": "Привет, {name}!",
+    "subtitle": "Пора сделать выбор",
+    "create": "Создать игру",
+    "creatingGame": "Создаём...",
+    "join": "Присоединиться к игре",
+    "rejoin": "Вернуться в последнюю сессию",
+    "friendFallback": "друг"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Пароль",
+    "login": "Войти",
+    "signup": "Зарегистрироваться",
+    "logout": "Выйти",
+    "loggingIn": "Выход...",
+    "signUpCta": "Зарегистрироваться",
+    "invalidCredentials": "Неверный email или пароль",
+    "loginError": "В процессе входа произошла ошибка",
+    "signupTitle": "Зарегистрироваться",
+    "passwordsMismatch": "Пароли не совпадают",
+    "passwordTooShort": "Пароль должен быть не короче 8 символов",
+    "registrationFailed": "Ошибка регистрации",
+    "passwordHint": "Выберите надёжный пароль (минимум 8 символов)",
+    "confirmPasswordHint": "Пожалуйста, введите пароль еще раз для предотвращения ошибок",
+    "registrationCompleteTitle": "Регистрация завершена!",
+    "registrationCompleteBody": "Теперь вы можете войти в аккаунт. Добро пожаловать!",
+    "creatingAccount": "Создание аккаунта...",
+    "continue": "Продолжить",
+    "confirmPassword": "Подтвердить пароль"
+  },
+  "game": {
+    "newSession": "Новая сессия",
+    "sessionTitle": "Сессия {code}",
+    "addMore": "Добавить",
+    "startGame": "Начать игру",
+    "startFight": "Начать бой!",
+    "startingFight": "Начинаем бой…",
+    "fightName": "Название боевой ситуации",
+    "addToFight": "Добавить",
+    "remove": "Убрать"
+  },
+  "card": {
+    "characterName": "Имя персонажа",
+    "playerName": "Имя игрока",
+    "monster": "Монстр",
+    "hp": "OЗ",
+    "armor": "КБ",
+    "initiative": "Инициатива",
+    "concentration": "Концентрация"
+  },
+  "effects": {
+  "title": "Состояния",
+  "empty": "Состояния не наложены",
+  "close": "Закрыть"
+  },
+  "settings": {
+    "description": "Выберите, какая информация будет отображаться в профиле",
+    "gamesLabel": "Количество игр",
+    "hoursLabel": "Количество часов в игре",
+    "nothingLabel": "Ничего",
+    "languageDescription": "Выберите предпочитаемый язык",
+    "languageRussian": "Русский",
+    "languageEnglish": "English",
+    "changePassword": "Поменять пароль",
+    "signOut": "Выйти"
+  },
+  "profile": {
+    "totalGames": "Количество игр",
+    "hoursInGame": "Часов в игре",
+    "settingsButton": "Настройки"
+  },
+  "join": {
+    "description": "Попросите ведущего выдать вам код приглашения и введите его ниже. Также можно отсканировать QR‑код с устройства ведущего!",
+    "placeholder": "Код игры",
+    "join": "Присоединиться",
+    "joining": "Подключаемся..."
+  },
+  "desktop": {
+    "title": "Версия для десктопа ещё не готова",
+    "subtitle": "Пожалуйста, используйте мобильное устройство или уменьшите окно"
+  },
+  "errors": {
+    "sessionNotFound": "Сессия не найдена",
+    "roomNotFound": "Комната не найдена",
+    "sessionNotFoundDetailed": "Сессия не найдена. Проверьте код и попробуйте снова.",
+    "failedToJoin": "Не получилось подключиться к сессии",
+    "failedToStartFight": "Не получилось начать бой",
+    "failedToFetchGames": "Не получилось получить игры",
+    "failedToCreateGame": "Не получилось создать игру",
+    "failedToLoadSession": "Не получилось загрузить сессию",
+    "failedToLoadRoom": "Не получилось загрузить комнату"
+  }
+}
+
+

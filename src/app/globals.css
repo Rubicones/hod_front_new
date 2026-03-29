@@ -1,0 +1,519 @@
+@import "tailwindcss";
+
+/* PP Neue Montreal Font Faces */
+@font-face {
+  font-family: 'PP Neue Montreal';
+  src: url('../fonts/PP/PPNeueMontreal-Book.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PP Neue Montreal';
+  src: url('../fonts/PP/PPNeueMontreal-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * Custom Color Palette
+ * 
+ * All colors from the design system are available as Tailwind utility classes.
+ * Use them with any Tailwind color utility (bg-, text-, border-, etc.)
+ * 
+ * Color Categories:
+ * 
+ * Brand Colors:
+ *   - bg-acid-arrow, text-acid-arrow (#F0FF00)
+ *   - bg-dream-of-the-blue-veil, text-dream-of-the-blue-veil (#2520FF)
+ *   - bg-gentle-repose, text-gentle-repose (#EDF2DC)
+ * 
+ * Black and White:
+ *   - bg-cloudkill, text-cloudkill (#000000)
+ *   - bg-beacon-of-hope, text-beacon-of-hope (#FFFFFF)
+ * 
+ * Dark Theme:
+ *   - bg-dark-star, text-dark-star (#0E0E0E) - Element background
+ *   - bg-time-stop, text-time-stop (#1C1C1C) - Card background
+ *   - bg-teleport, text-teleport (#262626) - Elevated
+ *   - bg-telepathing-bond, text-telepathing-bond (#383338) - Acid Arrow label
+ * 
+ * Error Colors:
+ *   - bg-fire-storm, text-fire-storm (#FF4040) - Wrong element
+ *   - bg-hellish-rebuke, text-hellish-rebuke (#2F1C1C) - Background
+ * 
+ * Examples:
+ *   - bg-arcane-lock (background color)
+ *   - text-cone-of-cold (text color)
+ *   - border-key-lime-pie (border color)
+ *   - bg-shadow-blade/60 (with 60% opacity)
+ *   - bg-mine-shaft/70 (with 70% opacity)
+ *   - bg-fire-storm text-beacon-of-hope (error button)
+ * 
+ * For colors with hyphens, you may need to use bracket notation:
+ *   - bg-[dream-of-the-blue-veil]
+ *   - text-[telepathing-bond]
+ */
+
+/**
+ * Typography System
+ * 
+ * Pre-configured text styles using PP Neue Montreal Medium (500) font weight.
+ * All typography classes can be combined with color utilities.
+ * 
+ * Available Typography Classes:
+ * 
+ * 1. text-stats-profile (48px, -5% letter spacing)
+ *    Usage: Statistics in profile, main character stats
+ *    Example: <p className="text-stats-profile">1,234</p>
+ * 
+ * 2. text-heading (28px)
+ *    Usage: Page headings, section titles
+ *    Example: <h1 className="text-heading">Page Title</h1>
+ * 
+ * 3. text-button (24px)
+ *    Usage: Button labels
+ *    Example: <button className="text-button">Click Me</button>
+ * 
+ * 4. text-settings (20px)
+ *    Usage: Settings page content, secondary headings
+ *    Example: <h2 className="text-settings">Settings</h2>
+ * 
+ * 5. text-body (18px)
+ *    Usage: Main body text, paragraphs
+ *    Example: <p className="text-body">Main content here</p>
+ * 
+ * 6. text-tag (16px)
+ *    Usage: Tags, languages, labels
+ *    Example: <span className="text-tag">Tag</span>
+ * 
+ * 7. text-stats-secondary (14px)
+ *    Usage: Additional character stats, secondary information
+ *    Example: <p className="text-stats-secondary">Additional info</p>
+ * 
+ * 8. text-label (11px)
+ *    Usage: Input labels, error text
+ *    Example: <label className="text-label">Email</label>
+ * 
+ * Combining with Colors:
+ *   <h1 className="text-heading text-white">White Heading</h1>
+ *   <p className="text-body text-silvery-barbs">Gray Body</p>
+ *   <span className="text-tag bg-key-lime-pie text-arcane-lock">Tag</span>
+ */
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --font-pp-neue-montreal: 'PP Neue Montreal', sans-serif;
+  color-scheme: dark;
+  
+  /* Grayscale Colors */
+  --arcane-lock: #111111; /* Disabled items */
+  --cone-of-cold: #1B1B1B; /* Opaque state bg */
+  --mine-shaft: #252525; /* Secondary button (use with 70% opacity) */
+  --forbiddance: #302F2F; /* Counter bg */
+  --find-the-path: #373737; /* Field bg */
+  --alter-self: #3D3D3D; /* Opaque button text */
+  --shadow-blade: #454545; /* Tap Bar (use with 60% opacity) */
+  --crusaders-mantle: #5D5D5D; /* Opaque label */
+  --silvery-barbs: #717171; /* Section header */
+  --illusory-script: #8F8F8F; /* Placeholder */
+  --silent-image: #A4A4A4; /* Label on white */
+  --divine-favor: #C2BDBD; /* Opaque title */
+  --eerie-black: #1B1B1B; /* Inactive tap bar button (use with 80% opacity) */
+  --after-self: #3D3D3D;
+  --circle-of-power: #1A1A1A;
+  /* Brand Colors */
+  --acid-arrow: #F0FF00;
+  --dream-of-the-blue-veil: #2520FF;
+  --gentle-repose: #EDF2DC;
+  --genele-repose: #EDF2DC; /* Alias for backward compatibility */
+  
+  /* Black and White */
+  --cloudkill: #000000;
+  --beacon-of-hope: #FFFFFF;
+  
+  /* Dark Theme */
+  --dark-star: #0E0E0E; /* Element background */
+  --time-stop: #1C1C1C; /* Card background */
+  --teleport: #262626; /* Elevated */
+  --telepathing-bond: #383338; /* Acid Arrow label */
+  
+  /* Error Colors */
+  --fire-storm: #FF4040; /* Wrong element */
+  --hellish-rebuke: #2F1C1C; /* Background */
+  
+  /* Accent Colors */
+  --wet-sand: #C8CEB3; /* Pressed tertiary button */
+  --key-lime-pie: #C3CD1A; /* Pressed primary button */
+  --incandescent-red: #BB2C2C; /* Pressed error button */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-pp-neue-montreal);
+  
+  /* Typography Sizes */
+  --font-size-stats-profile: 48px;
+  --font-size-heading: 28px;
+  --font-size-button: 24px;
+  --font-size-settings: 20px;
+  --font-size-body: 18px;
+  --font-size-tag: 16px;
+  --font-size-stats-secondary: 14px;
+  --font-size-label: 11px;
+  
+  /* Letter Spacing */
+  --letter-spacing-stats-profile: -0.05em; /* -5% */
+  
+  /* Grayscale Colors */
+  --color-arcane-lock: var(--arcane-lock);
+  --color-cone-of-cold: var(--cone-of-cold);
+  --color-mine-shaft: var(--mine-shaft);
+  --color-forbiddance: var(--forbiddance);
+  --color-find-the-path: var(--find-the-path);
+  --color-alter-self: var(--alter-self);
+  --color-shadow-blade: var(--shadow-blade);
+  --color-crusaders-mantle: var(--crusaders-mantle);
+  --color-silvery-barbs: var(--silvery-barbs);
+  --color-illusory-script: var(--illusory-script);
+  --color-silent-image: var(--silent-image);
+  --color-divine-favor: var(--divine-favor);
+  --color-eerie-black: var(--eerie-black);
+  --color-after-self: var(--after-self);
+  --color-genele-repose: var(--genele-repose);
+  
+  /* Brand Colors */
+  --color-acid-arrow: var(--acid-arrow);
+  --color-dream-of-the-blue-veil: var(--dream-of-the-blue-veil);
+  --color-gentle-repose: var(--gentle-repose);
+  --color-circle-of-power: var(--circle-of-power);
+  /* Black and White */
+  --color-cloudkill: var(--cloudkill);
+  --color-beacon-of-hope: var(--beacon-of-hope);
+  
+  /* Dark Theme */
+  --color-dark-star: var(--dark-star);
+  --color-time-stop: var(--time-stop);
+  --color-teleport: var(--teleport);
+  --color-telepathing-bond: var(--telepathing-bond);
+  
+  /* Error Colors */
+  --color-fire-storm: var(--fire-storm);
+  --color-hellish-rebuke: var(--hellish-rebuke);
+  
+  /* Accent Colors */
+  --color-wet-sand: var(--wet-sand);
+  --color-key-lime-pie: var(--key-lime-pie);
+  --color-incandescent-red: var(--incandescent-red);
+}
+
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-pp-neue-montreal, 'PP Neue Montreal'), sans-serif;
+}
+
+/**
+ * Typography Utility Classes
+ * 
+ * Pre-configured text styles matching the design system.
+ * All styles use PP Neue Montreal Medium (500) font weight.
+ */
+
+@layer utilities {
+  /* Statistics in profile - 48px, Medium, -5% letter spacing */
+  .text-stats-profile {
+    font-size: 48px;
+    font-weight: 500;
+    letter-spacing: -0.05em;
+    line-height: 1.2;
+  }
+
+  /* Heading - 28px, Medium */
+  .text-heading {
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  /* Buttons - 24px, Medium */
+  .text-button {
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  /* Settings - 20px, Medium */
+  .text-settings {
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  /* Body main - 18px, Medium */
+  .text-body {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  /* Tags, languages - 16px, Medium */
+  .text-tag {
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Additional character stats - 14px, Medium */
+  .text-stats-secondary {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Input label, error text - 11px, Medium */
+  .text-label {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+}
+
+/**
+ * Expandable Skills Grid Styles
+ */
+.expandable-skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 3px;
+  transition: grid-template-columns 300ms ease-in-out;
+  width: 100%;
+}
+
+.expandable-skills-grid:has([data-selected="left"]) {
+  grid-template-columns: 4fr 1fr 1fr;
+}
+
+.expandable-skills-grid:has([data-selected="center"]) {
+  grid-template-columns: 1fr 4fr 1fr;
+}
+
+.expandable-skills-grid:has([data-selected="right"]) {
+  grid-template-columns: 1fr 1fr 4fr;
+}
+
+.expandable-skill-item {
+  cursor: pointer;
+  transition: 200ms;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Pulsing loading animation for star icon */
+@keyframes pulse-loading {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+.animate-pulse-loading {
+  animation: pulse-loading 1.2s ease-in-out infinite;
+}
+
+/* Exclude elements from view transitions to prevent lag (e.g. fixed toolbar) */
+.exclude-view-transition {
+  view-transition-name: none !important;
+}
+
+/**
+ * Disable root view transition so only NewCard elements animate (no full-screen crossfade)
+ */
+::view-transition-group(root) {
+  animation: none;
+}
+
+/**
+ * NewCard monster toggle - 3 steps per scheme:
+ * 1) Avatar & player name fade out (::view-transition-old)
+ * 2) Character name input resizes from flex-1 to full width (morph)
+ * 3) Body (Monster toggle, HP, Armor, etc.) moves up into freed space (morph)
+ */
+@keyframes newcard-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Step 1: Fade out avatar and player name when switching to monster */
+::view-transition-old(newcard-avatar),
+::view-transition-old(newcard-player-name) {
+  animation: 200ms ease-out newcard-fade-out forwards;
+}
+
+@keyframes newcard-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Fade in avatar and player name when switching back to player */
+::view-transition-new(newcard-avatar),
+::view-transition-new(newcard-player-name) {
+  animation: 200ms ease-out newcard-fade-in forwards;
+}
+
+/* Steps 2 & 3: Smooth morph for name (resize) and body (move up) */
+::view-transition-group(newcard-name),
+::view-transition-group(newcard-body) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/**
+ * ViewTransition Animation System
+ * 
+ * Used for animating between tabs and views.
+ * - slide-left: Content slides from right to left (forward navigation)
+ * - slide-right: Content slides from left to right (backward navigation)
+ * - fade: Simple fade in/out transition
+ * - settings-morph: For the Settings text morphing animation
+ */
+
+/* Slide Left - Forward Navigation (e.g., Home -> Profile) */
+@keyframes slide-out-left {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-30%); opacity: 0; }
+}
+
+@keyframes slide-in-from-right {
+  from { transform: translateX(30%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Slide Right - Backward Navigation (e.g., Profile -> Home) */
+@keyframes slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(30%); opacity: 0; }
+}
+
+@keyframes slide-in-from-left {
+  from { transform: translateX(-30%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Fade animations */
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Forward navigation - slide left */
+::view-transition-old(.slide-forward) {
+  display: none;
+}
+
+::view-transition-new(.slide-forward) {
+  animation: 250ms ease-out slide-in-from-right;
+}
+
+/* Backward navigation - slide right */
+::view-transition-old(.slide-backward) {
+  display: none;
+}
+
+::view-transition-new(.slide-backward) {
+  animation: 250ms ease-out slide-in-from-left;
+}
+
+/* Fade transition for settings content */
+::view-transition-old(.fade-transition) {
+  display: none;
+}
+
+::view-transition-new(.fade-transition) {
+  animation: 200ms ease-in fade-in;
+}
+
+/* Shared element transition for Settings text */
+::view-transition-group(settings-title) {
+  animation-duration: 350ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-old(settings-title) {
+  animation: 350ms ease-out fade-out;
+  mix-blend-mode: normal;
+  height: 100%;
+  width: auto;
+}
+
+::view-transition-new(settings-title) {
+  animation: 350ms ease-in fade-in;
+  mix-blend-mode: normal;
+  height: 100%;
+  width: auto;
+}
+
+/* Auth page shared element transitions */
+::view-transition-group(auth-title),
+::view-transition-group(auth-email-input),
+::view-transition-group(auth-primary-button),
+::view-transition-group(auth-secondary-button) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-old(auth-title) {
+  display: none;
+}
+
+::view-transition-new(auth-title) {
+  animation: 300ms ease-out fade-in;
+}
+
+::view-transition-old(auth-email-input),
+::view-transition-new(auth-email-input),
+::view-transition-old(auth-primary-button),
+::view-transition-new(auth-primary-button),
+::view-transition-old(auth-secondary-button),
+::view-transition-new(auth-secondary-button) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Password input appears with fade-in when navigating to login */
+::view-transition-group(auth-password-input) {
+  animation-duration: 300ms;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-new(auth-password-input) {
+  animation: 300ms ease-out fade-in;
+}
+
+::view-transition-old(auth-password-input) {
+  animation: 150ms ease-out fade-out;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+}
+
+.blur_and_darken {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: brightness(0.8);
+  -webkit-backdrop-filter: brightness(0.8);
+}
