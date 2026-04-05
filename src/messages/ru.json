@@ -55,7 +55,17 @@
     "startingFight": "Начинаем бой…",
     "fightName": "Название боевой ситуации",
     "addToFight": "Добавить",
-    "remove": "Убрать"
+    "remove": "Убрать",
+    "findMonster": "Найти монстра",
+    "searchMonstersPlaceholder": "Поиск монстров…",
+    "monsterLoading": "Загрузка справочника…",
+    "monsterLoadError": "Не удалось загрузить монстров. Попробуйте снова.",
+    "monsterAddError": "Не удалось добавить монстра.",
+    "closeMonsterFinder": "Закрыть",
+    "monsterRetry": "Повторить",
+    "noMonsterMatches": "Нет монстров по этому запросу.",
+    "existingRooms": "Текущие сцены",
+    "enterRoom": "Войти в комнату"
   },
   "card": {
     "characterName": "Имя персонажа",

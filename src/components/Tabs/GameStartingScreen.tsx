@@ -1,12 +1,30 @@
- "use client";
+"use client";
 
-import { useState, useCallback, startTransition, ViewTransition } from "react";
+import {
+    useState,
+    useCallback,
+    useEffect,
+    startTransition,
+    ViewTransition,
+} from "react";
 import { useRouter, useParams } from "next/navigation";
 import MainCard from "@/components/Organisms/MainCard";
 import NewCard from "@/components/Organisms/NewCard";
+import MonsterFinderPanel from "@/components/Molecules/MonsterFinderPanel";
+import RoomEntryList, {
+    type RoomEntry,
+} from "@/components/Molecules/RoomEntryList";
 import Button from "@/components/Atoms/Button";
 import Input from "@/components/Atoms/Input";
 import { api } from "@/lib/api";
+import {
+    fetchMonstersList,
+    fetchMonsterByIndex,
+    armorClassFromMonster,
+    dexModifier,
+    passivePerceptionFromMonster,
+    type MonsterSummary,
+} from "@/lib/dnd5eApi";
 import avatarPlaceholder from "@/app/images/elfIconMale.png";
 import { conditions } from "@/data/conditions";
 import type { Character } from "./CharacterCreation";
@@ -33,7 +51,8 @@ export type GameUnit = {
 
 export type GameSnapshot = {
     units: Record<string, GameUnit>;
-    rooms?: Record<string, unknown>;
+    /** Combat / scene rooms from `get_snapshot` (optional). */
+    rooms?: RoomEntry[];
 };
 
 type GameStartingScreenProps = {
@@ -47,7 +66,7 @@ type GameStartingScreenProps = {
 const avatarSrc =
     typeof avatarPlaceholder === "string"
         ? avatarPlaceholder
-        : (avatarPlaceholder as { src: string }).src ?? "";
+        : ((avatarPlaceholder as { src: string }).src ?? "");
 
 // Map conditions to EffectsList shape (id, name, description)
 const ALL_CONDITIONS_AS_EFFECTS = conditions.map((c) => ({
@@ -82,7 +101,9 @@ type RawGameUnit = {
     }>;
 };
 
-function parseSnapshotUnits(data: { units?: Record<string, RawGameUnit> }): Record<string, GameUnit> {
+function parseSnapshotUnits(data: {
+    units?: Record<string, RawGameUnit>;
+}): Record<string, GameUnit> {
     const rawUnits = data?.units ?? {};
     return Object.fromEntries(
         Object.entries(rawUnits).map(([key, u]) => [
@@ -111,14 +132,26 @@ export default function GameStartingScreen({
     token,
 }: GameStartingScreenProps) {
     const [units, setUnits] = useState<Record<string, GameUnit>>(
-        () => snapshot.units || {}
+        () => snapshot.units || {},
     );
     const [newCharacters, setNewCharacters] = useState<Character[]>(() => {
         const hasExistingUnits =
             snapshot.units && Object.keys(snapshot.units).length > 0;
         return hasExistingUnits ? [] : [createEmptyCharacter()];
     });
-    const [addingCharacterId, setAddingCharacterId] = useState<string | null>(null);
+    const [addingCharacterId, setAddingCharacterId] = useState<string | null>(
+        null,
+    );
+    const [monsterFinderOpen, setMonsterFinderOpen] = useState(false);
+    const [monsterSearch, setMonsterSearch] = useState("");
+    const [monsterCatalog, setMonsterCatalog] = useState<MonsterSummary[]>([]);
+    const [monsterCatalogLoading, setMonsterCatalogLoading] = useState(false);
+    const [monsterCatalogError, setMonsterCatalogError] = useState<
+        string | null
+    >(null);
+    const [addingMonsterIndex, setAddingMonsterIndex] = useState<string | null>(
+        null,
+    );
     const [fightSceneName, setFightSceneName] = useState("");
     const [isStartingFight, setIsStartingFight] = useState(false);
     const unitList = Object.values(units);
@@ -143,14 +176,14 @@ export default function GameStartingScreen({
                 await api.post(
                     `/game/${gameId}/units/${unitId}/hp/set`,
                     { hp },
-                    token
+                    token,
                 );
                 updateUnit(unitId, { hp });
             } catch (err) {
                 console.error("Set HP failed:", err);
             }
         },
-        [gameId, token, updateUnit]
+        [gameId, token, updateUnit],
     );
 
     const setArmor = useCallback(
@@ -159,14 +192,14 @@ export default function GameStartingScreen({
                 await api.post(
                     `/game/${gameId}/units/${unitId}/armor/set`,
                     { armor },
-                    token
+                    token,
                 );
                 updateUnit(unitId, { armor });
             } catch (err) {
                 console.error("Set armor failed:", err);
             }
         },
-        [gameId, token, updateUnit]
+        [gameId, token, updateUnit],
     );
 
     const setInitiative = useCallback(
@@ -175,14 +208,14 @@ export default function GameStartingScreen({
                 await api.post(
                     `/game/${gameId}/units/${unitId}/initiative/set`,
                     { initiative },
-                    token
+                    token,
                 );
                 updateUnit(unitId, { initiative });
             } catch (err) {
                 console.error("Set initiative failed:", err);
             }
         },
-        [gameId, token, updateUnit]
+        [gameId, token, updateUnit],
     );
 
     const addEffect = useCallback(
@@ -212,7 +245,7 @@ export default function GameStartingScreen({
                             room_id: null,
                         },
                     },
-                    token
+                    token,
                 );
 
                 const parsedUnits = parseSnapshotUnits(
@@ -223,7 +256,7 @@ export default function GameStartingScreen({
                 console.error("Add effect failed:", err);
             }
         },
-        [gameId, token]
+        [gameId, token],
     );
 
     const removeEffect = useCallback(
@@ -242,7 +275,7 @@ export default function GameStartingScreen({
                     data?: { units?: Record<string, RawGameUnit> };
                 }>(
                     `/game/${gameId}/units/${unitId}/effects/${effectInstanceId}`,
-                    token
+                    token,
                 );
                 const parsedUnits = parseSnapshotUnits(
                     res.snapshot ?? res.data ?? {},
@@ -252,7 +285,7 @@ export default function GameStartingScreen({
                 console.error("Remove effect failed:", err);
             }
         },
-        [gameId, token, units]
+        [gameId, token, units],
     );
 
     const handleEffectToggle = useCallback(
@@ -266,14 +299,17 @@ export default function GameStartingScreen({
                 addEffect(unitId, effectId);
             }
         },
-        [units, addEffect, removeEffect]
+        [units, addEffect, removeEffect],
     );
 
-    const updateNewCharacter = useCallback((id: string, updates: Partial<Character>) => {
-        setNewCharacters((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-        );
-    }, []);
+    const updateNewCharacter = useCallback(
+        (id: string, updates: Partial<Character>) => {
+            setNewCharacters((prev) =>
+                prev.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+            );
+        },
+        [],
+    );
 
     const deleteNewCharacter = useCallback((id: string) => {
         startTransition(() => {
@@ -286,6 +322,93 @@ export default function GameStartingScreen({
             setNewCharacters((prev) => [...prev, createEmptyCharacter()]);
         });
     }, []);
+
+    // Load catalog when panel opens. Do NOT put `monsterCatalogLoading` in deps — when it flips
+    // to true the effect re-runs, cleanup runs with cancelled=true, and loading never clears.
+    useEffect(() => {
+        if (!monsterFinderOpen) return;
+        if (monsterCatalog.length > 0) return;
+        if (monsterCatalogError) return;
+
+        let cancelled = false;
+        setMonsterCatalogLoading(true);
+        setMonsterCatalogError(null);
+        fetchMonstersList()
+            .then((list) => {
+                if (!cancelled) setMonsterCatalog(list);
+            })
+            .catch((err) => {
+                console.error("Monster catalog load failed:", err);
+                if (!cancelled)
+                    setMonsterCatalogError(
+                        err instanceof Error
+                            ? err.message
+                            : tGame("monsterLoadError"),
+                    );
+            })
+            .finally(() => {
+                if (!cancelled) setMonsterCatalogLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [monsterFinderOpen, monsterCatalog.length, monsterCatalogError, tGame]);
+
+    useEffect(() => {
+        if (!monsterFinderOpen) setMonsterSearch("");
+    }, [monsterFinderOpen]);
+
+    const handleAddMonsterFromApi = useCallback(
+        async (index: string) => {
+            setAddingMonsterIndex(index);
+            try {
+                const detail = await fetchMonsterByIndex(index);
+                const armor = armorClassFromMonster(detail);
+                const hp = detail.hit_points ?? 0;
+                const initiative = dexModifier(detail.dexterity ?? 10);
+                const passivePerception = passivePerceptionFromMonster(detail);
+
+                const created = await api.post<{ id: string }>(
+                    "/character/create",
+                    {
+                        name: detail.name.trim(),
+                        initiative,
+                        armor,
+                        hp,
+                        is_monster: true,
+                        languages: [],
+                        passive_perception: passivePerception,
+                        passive_investigation: 10,
+                        passive_insight: 10,
+                    },
+                    token,
+                );
+                await api.post(
+                    `/game/register?game_id=${gameId}`,
+                    { character_id: created.id },
+                    token,
+                );
+                const snapshotRes = await api.post<{
+                    data?: { units?: Record<string, RawGameUnit> };
+                }>(`/game/${gameId}/get_snapshot`, {}, token);
+                const freshUnits = parseSnapshotUnits(snapshotRes?.data ?? {});
+                startTransition(() => {
+                    setUnits(freshUnits);
+                });
+            } catch (err) {
+                console.error("Add monster failed:", err);
+                alert(
+                    err instanceof Error
+                        ? err.message
+                        : tGame("monsterAddError"),
+                );
+            } finally {
+                setAddingMonsterIndex(null);
+            }
+        },
+        [gameId, token, tGame],
+    );
 
     const handleAddToFight = useCallback(
         async (character: Character) => {
@@ -306,12 +429,12 @@ export default function GameStartingScreen({
                         passive_investigation: 10,
                         passive_insight: 10,
                     },
-                    token
+                    token,
                 );
                 await api.post(
                     `/game/register?game_id=${gameId}`,
                     { character_id: created.id },
-                    token
+                    token,
                 );
                 const snapshotRes = await api.post<{
                     data?: { units?: Record<string, RawGameUnit> };
@@ -319,16 +442,22 @@ export default function GameStartingScreen({
                 const freshUnits = parseSnapshotUnits(snapshotRes?.data ?? {});
                 startTransition(() => {
                     setUnits(freshUnits);
-                    setNewCharacters((prev) => prev.filter((c) => c.id !== character.id));
+                    setNewCharacters((prev) =>
+                        prev.filter((c) => c.id !== character.id),
+                    );
                 });
             } catch (err) {
                 console.error("Add to fight failed:", err);
-                alert(err instanceof Error ? err.message : "Failed to add to fight");
+                alert(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to add to fight",
+                );
             } finally {
                 setAddingCharacterId(null);
             }
         },
-        [gameId, token]
+        [gameId, token],
     );
 
     const handleStartFight = useCallback(async () => {
@@ -350,7 +479,7 @@ export default function GameStartingScreen({
                     name,
                     type: "combat",
                 },
-                token
+                token,
             );
 
             const roomId =
@@ -374,16 +503,12 @@ export default function GameStartingScreen({
                 await api.post(
                     `/game/${gameId}/rooms/${roomId}/participants`,
                     { unit_id: unitId, action: "add" },
-                    token
+                    token,
                 );
             }
 
             // 3) Start the room
-            await api.post(
-                `/game/${gameId}/rooms/${roomId}/start`,
-                {},
-                token
-            );
+            await api.post(`/game/${gameId}/rooms/${roomId}/start`, {}, token);
 
             if (gameCode) {
                 router.push(`/${locale}/game/${gameCode}/rooms/${roomId}`);
@@ -394,11 +519,28 @@ export default function GameStartingScreen({
         } finally {
             setIsStartingFight(false);
         }
-    }, [fightSceneName, gameCode, gameId, isStartingFight, router, token]);
+    }, [
+        fightSceneName,
+        gameCode,
+        gameId,
+        isStartingFight,
+        locale,
+        router,
+        tGame,
+        token,
+    ]);
+
+    const handleEnterRoom = useCallback(
+        (roomId: string) => {
+            if (!gameCode) return;
+            router.push(`/${locale}/game/${gameCode}/rooms/${roomId}`);
+        },
+        [gameCode, locale, router],
+    );
 
     return (
-        <div className="w-full h-full flex flex-col pt-4 pb-8 overflow-y-auto">
-            <div className="flex flex-col gap-4 px-4 items-center">
+        <div className='w-full h-full flex flex-col pt-4 pb-8 overflow-y-auto'>
+            <div className='flex flex-col gap-4 px-4 items-center'>
                 {unitList.map((unit) => (
                     <ViewTransition key={unit.id} name={`unit-${unit.id}`}>
                         <MainCard
@@ -436,7 +578,8 @@ export default function GameStartingScreen({
                 {newCharacters.map((character) => (
                     <NewCard
                         key={character.id}
-                        type="player"
+                        type='player'
+                        enableViewTransition={false}
                         cardId={character.id}
                         avatarSrc={character.avatarSrc}
                         playerName={character.playerName}
@@ -446,28 +589,40 @@ export default function GameStartingScreen({
                         armor={character.armor}
                         initiative={character.initiative}
                         onPlayerNameChange={(e) =>
-                            updateNewCharacter(character.id, { playerName: e.target.value })
+                            updateNewCharacter(character.id, {
+                                playerName: e.target.value,
+                            })
                         }
                         onCharacterNameChange={(e) =>
-                            updateNewCharacter(character.id, { characterName: e.target.value })
+                            updateNewCharacter(character.id, {
+                                characterName: e.target.value,
+                            })
                         }
                         onIsMonsterChange={(checked) => {
                             startTransition(() =>
-                                updateNewCharacter(character.id, { isMonster: checked })
+                                updateNewCharacter(character.id, {
+                                    isMonster: checked,
+                                }),
                             );
                         }}
                         onHpChange={(e) =>
                             updateNewCharacter(character.id, {
-                                hp: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                                hp: e.target.value
+                                    ? parseInt(e.target.value, 10)
+                                    : undefined,
                             })
                         }
                         onArmorChange={(e) =>
                             updateNewCharacter(character.id, {
-                                armor: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                                armor: e.target.value
+                                    ? parseInt(e.target.value, 10)
+                                    : undefined,
                             })
                         }
                         onInitiativeChange={(value: number) =>
-                            updateNewCharacter(character.id, { initiative: value })
+                            updateNewCharacter(character.id, {
+                                initiative: value,
+                            })
                         }
                         onAddToFight={() => handleAddToFight(character)}
                         canAddToFight={character.characterName.trim() !== ""}
@@ -476,29 +631,63 @@ export default function GameStartingScreen({
                     />
                 ))}
 
-                <div className="w-full">
+                <MonsterFinderPanel
+                    findMonsterLabel={tGame("findMonster")}
+                    searchPlaceholder={tGame("searchMonstersPlaceholder")}
+                    loadingLabel={tGame("monsterLoading")}
+                    loadError={monsterCatalogError}
+                    retryLabel={tGame("monsterRetry")}
+                    noMatchesLabel={tGame("noMonsterMatches")}
+                    closeLabel={tGame("closeMonsterFinder")}
+                    catalog={monsterCatalog}
+                    catalogLoading={monsterCatalogLoading}
+                    search={monsterSearch}
+                    onSearchChange={setMonsterSearch}
+                    onRetryCatalog={() => setMonsterCatalogError(null)}
+                    onAddByIndex={handleAddMonsterFromApi}
+                    addingIndex={addingMonsterIndex}
+                    onOpenChange={setMonsterFinderOpen}
+                    compactTrigger
+                />
+
+                <div className='w-full'>
                     <Button
                         text={tGame("addMore")}
-                        variant="secondary"
+                        variant='secondary'
                         onClick={addNewCharacter}
-                        className="w-full"
+                        className='w-full'
                     />
                 </div>
 
                 {/* Fight scene name & Start a fight */}
-                <div className="w-full mt-6 pt-6 border-t border-find-the-path flex flex-col gap-3">
+                <div className='w-full mt-6 pt-6 border-t border-find-the-path flex flex-col gap-3'>
+                    {snapshot.rooms && snapshot.rooms.length > 0 && (
+                        <div className='w-full flex flex-col gap-2'>
+                            <h3 className='text-body text-silvery-barbs w-full text-left'>
+                                {tGame("existingRooms")}
+                            </h3>
+                            <RoomEntryList
+                                rooms={snapshot.rooms}
+                                onEnterRoom={handleEnterRoom}
+                            />
+                        </div>
+                    )}
                     <Input
                         placeholder={tGame("fightName")}
                         defaultValue={fightSceneName}
                         onChange={(e) => setFightSceneName(e.target.value)}
-                        className="w-full"
+                        className='w-full'
                     />
                     <Button
-                        text={isStartingFight ? tGame("startingFight") : tGame("startFight")}
-                        variant="primary"
+                        text={
+                            isStartingFight
+                                ? tGame("startingFight")
+                                : tGame("startFight")
+                        }
+                        variant='primary'
                         onClick={handleStartFight}
                         isDisabled={isStartingFight || unitList.length === 0}
-                        className="w-full"
+                        className='w-full'
                     />
                 </div>
             </div>

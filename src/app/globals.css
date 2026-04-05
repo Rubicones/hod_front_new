@@ -226,6 +226,14 @@ body {
  */
 
 @layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+		display: none;
+	}
+	/* Hide scrollbar for IE, Edge and Firefox */
+	.no-scrollbar {
+		-ms-overflow-style: none; /* IE and Edge */
+		scrollbar-width: none; /* Firefox */
+	}
   /* Statistics in profile - 48px, Medium, -5% letter spacing */
   .text-stats-profile {
     font-size: 48px;
@@ -330,10 +338,43 @@ body {
 }
 
 /**
- * Disable root view transition so only NewCard elements animate (no full-screen crossfade)
+ * Default: quiet the root *group* only. The UA still crossfades ::view-transition-old/new(root),
+ * which fades the entire root snapshot (including position:fixed UI) while the transition
+ * pseudo-tree sits in the top layer — fixed chrome can look “erased”.
  */
+
 ::view-transition-group(root) {
   animation: none;
+}
+
+/**
+ * Game session only (see .hod-game-session on game/[gameId]/page):
+ * - Turn off root old/new crossfade so the viewport snapshot does not fade as a whole.
+ * - Give fixed TopToolbar its own named group (see .view-transition-fixed-chrome) above
+ *   root content so it stays stable and visible.
+ */
+html:has(.hod-game-session) ::view-transition-group(root) {
+  animation: none !important;
+  z-index: 0;
+}
+
+html:has(.hod-game-session) ::view-transition-old(root),
+html:has(.hod-game-session) ::view-transition-new(root) {
+  animation: none !important;
+}
+
+.view-transition-fixed-chrome {
+  view-transition-name: hod-fixed-chrome;
+}
+
+html:has(.hod-game-session) ::view-transition-group(hod-fixed-chrome) {
+  animation: none !important;
+  z-index: 1;
+}
+
+html:has(.hod-game-session) ::view-transition-old(hod-fixed-chrome),
+html:has(.hod-game-session) ::view-transition-new(hod-fixed-chrome) {
+  animation: none !important;
 }
 
 /**

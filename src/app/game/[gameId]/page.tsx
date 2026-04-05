@@ -1,11 +1,12 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import LoadingScreen from "@/components/Atoms/LoadingScreen";
 import TopToolbar from "@/components/Atoms/TopToolbar";
 import { GameStartingScreen, type GameSnapshot, type GameUnit } from "@/components/Tabs";
+import type { RoomEntry } from "@/components/Molecules/RoomEntryList";
 import { api } from "@/lib/api";
 import { setLastGameId } from "@/lib/gameStorage";
 import { useLocale, useTranslations } from "next-intl";
@@ -26,7 +27,42 @@ type RawGameUnit = {
     }>;
 };
 
-function parseSnapshotResponse(data: { units?: Record<string, RawGameUnit> }): GameSnapshot {
+type RawRoom = {
+    id?: string;
+    name?: string;
+};
+
+function parseRoomsList(roomsRaw: unknown): RoomEntry[] {
+    if (!roomsRaw || typeof roomsRaw !== "object") return [];
+
+    const rawRoomsContainer = roomsRaw as
+        | { items?: Record<string, RawRoom> }
+        | Record<string, RawRoom>;
+
+    let roomsMap: Record<string, RawRoom>;
+    if (
+        rawRoomsContainer &&
+        "items" in rawRoomsContainer &&
+        rawRoomsContainer.items &&
+        typeof rawRoomsContainer.items === "object"
+    ) {
+        roomsMap = rawRoomsContainer.items as Record<string, RawRoom>;
+    } else {
+        roomsMap = rawRoomsContainer as Record<string, RawRoom>;
+    }
+
+    return Object.values(roomsMap)
+        .filter((r) => r.id)
+        .map((r) => ({
+            id: r.id as string,
+            name: (r.name ?? "").trim() || "Room",
+        }));
+}
+
+function parseSnapshotResponse(data: {
+    units?: Record<string, RawGameUnit>;
+    rooms?: unknown;
+}): GameSnapshot {
     const rawUnits = data?.units ?? {};
     const units: Record<string, GameUnit> = Object.fromEntries(
         Object.entries(rawUnits).map(([key, u]) => [
@@ -47,7 +83,10 @@ function parseSnapshotResponse(data: { units?: Record<string, RawGameUnit> }): G
             },
         ]),
     );
-    return { units };
+    return {
+        units,
+        rooms: parseRoomsList(data?.rooms),
+    };
 }
 
 export default function GamePage() {
@@ -67,10 +106,15 @@ export default function GamePage() {
 
     useEffect(() => {
         if (status === "unauthenticated") {
-            router.push(`/${locale}/signup`);
-            return;
+            router.replace(`/${locale}/login`);
         }
     }, [status, router, locale]);
+
+    useEffect(() => {
+        if (session?.error === "RefreshTokenError") {
+            signOut({ callbackUrl: `/${locale}/login` });
+        }
+    }, [session?.error, locale]);
 
     useEffect(() => {
         if (!gameCode || !session?.accessToken) return;
@@ -91,11 +135,12 @@ export default function GamePage() {
                     setLoading(false);
                     return;
                 }
-                const snapshotRes = await api.post<{ data?: { units?: Record<string, RawGameUnit> } }>(
-                    `/game/${match.id}/get_snapshot`,
-                    {},
-                    session.accessToken,
-                );
+                const snapshotRes = await api.post<{
+                    data?: {
+                        units?: Record<string, RawGameUnit>;
+                        rooms?: unknown;
+                    };
+                }>(`/game/${match.id}/get_snapshot`, {}, session.accessToken);
                 const parsed = parseSnapshotResponse(snapshotRes?.data ?? {});
                 setSnapshot(parsed);
                 setGameId(match.id);
@@ -143,10 +188,11 @@ export default function GamePage() {
     }
 
     return (
-        <>
+        <div className="hod-game-session min-h-screen">
             <TopToolbar
                 showChevron
                 showShare
+                viewTransitionFixedChrome
                 subtitle={tGame("newSession")}
                 title={tGame("sessionTitle", { code: gameCode })}
                 onChevronClick={handleExit}
@@ -162,6 +208,6 @@ export default function GamePage() {
                     onExit={handleExit}
                 />
             </div>
-        </>
+        </div>
     );
 }

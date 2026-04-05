@@ -7,24 +7,52 @@ type RequestOptions = {
 
 export async function apiRequest<T>(
     endpoint: string,
-    options: RequestOptions = {}
+    options: RequestOptions = {},
 ): Promise<T> {
     const { method = "GET", body, headers = {}, token } = options;
 
-    const requestHeaders: Record<string, string> = {
+    const baseHeaders: Record<string, string> = {
         "Content-Type": "application/json",
         ...headers,
     };
 
-    if (token) {
-        requestHeaders["x-access-token"] = token;
-    }
+    const buildHeaders = (tok?: string) => {
+        const h = { ...baseHeaders };
+        if (tok) {
+            h["x-access-token"] = tok;
+        }
+        return h;
+    };
 
-    const response = await fetch(`/api/proxy${endpoint}`, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-    });
+    const url = `/api/proxy${endpoint}`;
+
+    const doFetch = (tok?: string) =>
+        fetch(url, {
+            method,
+            headers: buildHeaders(tok),
+            body: body ? JSON.stringify(body) : undefined,
+        });
+
+    let response = await doFetch(token);
+
+    // Access token expired on API but NextAuth session can still refresh — retry once
+    if (
+        response.status === 401 &&
+        token &&
+        typeof window !== "undefined"
+    ) {
+        const errBody = await response.text().catch(() => "");
+        const { getSession } = await import("next-auth/react");
+        await getSession();
+        const session = await getSession();
+
+        if (!session?.accessToken || session.error === "RefreshTokenError") {
+            throw new Error(errBody || "Session expired");
+        }
+
+        const newToken = session.accessToken;
+        response = await doFetch(newToken);
+    }
 
     if (!response.ok) {
         const error = await response.text();

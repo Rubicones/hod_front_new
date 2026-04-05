@@ -70,12 +70,12 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/signup");
+      router.replace(`/${locale}/login`);
     }
     if (session?.error === "RefreshTokenError") {
-      signOut({ callbackUrl: "/login" });
+      signOut({ callbackUrl: `/${locale}/login` });
     }
-  }, [status, session?.error, router]);
+  }, [status, session?.error, router, locale]);
 
   useEffect(() => {
     const fetchGames = async () => {

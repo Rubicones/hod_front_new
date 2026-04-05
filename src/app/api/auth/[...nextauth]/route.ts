@@ -73,27 +73,31 @@ export const authOptions: NextAuthOptions = {
                 return token;
             }
 
-            // Refresh token 60 seconds before expiration
-            const shouldRefresh = token.expiresAt 
-                ? Date.now() > token.expiresAt - 60 * 1000
+            // Already failed — avoid hammering Keycloak; client should sign out
+            if (token.error === "RefreshTokenError") {
+                return token;
+            }
+
+            const BUFFER_MS = 90 * 1000;
+            const shouldRefresh = token.expiresAt
+                ? Date.now() >= token.expiresAt - BUFFER_MS
                 : true;
 
             if (!shouldRefresh) {
                 return token;
             }
 
-            // Token expired or about to expire, try to refresh
             if (token.refreshToken) {
                 try {
                     const { refreshToken } = await import("@/lib/keycloak");
                     const refreshed = await refreshToken(token.refreshToken);
 
                     token.accessToken = refreshed.access_token;
-                    token.refreshToken = refreshed.refresh_token;
-                    token.expiresAt = Date.now() + refreshed.expires_in * 1000;
+                    token.refreshToken =
+                        refreshed.refresh_token ?? token.refreshToken;
+                    token.expiresAt =
+                        Date.now() + (refreshed.expires_in ?? 300) * 1000;
                     token.error = undefined;
-                    
-                    console.log("[Auth] Token refreshed successfully");
                 } catch (error) {
                     console.error("[Auth] Token refresh failed:", error);
                     token.error = "RefreshTokenError";

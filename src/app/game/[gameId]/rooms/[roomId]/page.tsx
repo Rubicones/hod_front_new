@@ -1,8 +1,15 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useMemo, useState, startTransition, ViewTransition } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+    startTransition,
+    ViewTransition,
+} from "react";
 import TopToolbar from "@/components/Atoms/TopToolbar";
 import LoadingScreen from "@/components/Atoms/LoadingScreen";
 import MainCard from "@/components/Organisms/MainCard";
@@ -182,12 +189,20 @@ export default function RoomPage() {
     const [error, setError] = useState<string | null>(null);
     const [isAdvancingTurn, setIsAdvancingTurn] = useState(false);
     const [isTogglingEffect, setIsTogglingEffect] = useState(false);
+    /** Off-turn unit opened for editing (HP, etc.); cleared on name click or turn change */
+    const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
 
     useEffect(() => {
         if (status === "unauthenticated") {
-            router.push(`/${locale}/signup`);
+            router.replace(`/${locale}/login`);
         }
     }, [status, router, locale]);
+
+    useEffect(() => {
+        if (session?.error === "RefreshTokenError") {
+            signOut({ callbackUrl: `/${locale}/login` });
+        }
+    }, [session?.error, locale]);
 
     useEffect(() => {
         if (!gameCode || !roomIdParam || !session?.accessToken) return;
@@ -233,6 +248,10 @@ export default function RoomPage() {
         loadRoom();
     }, [gameCode, roomIdParam, session?.accessToken, tErrors]);
 
+    useEffect(() => {
+        setExpandedUnitId(null);
+    }, [room?.active_unit_id]);
+
     const orderedUnits = useMemo(() => {
         const baseIds = room?.turn_order?.length
             ? room.turn_order
@@ -261,6 +280,65 @@ export default function RoomPage() {
     const handleExit = () => {
         router.push(`/${locale}/game/${gameCode}`);
     };
+
+    const updateUnit = useCallback((id: string, updates: Partial<GameUnit>) => {
+        setUnits((prev) => {
+            const next = { ...prev };
+            if (next[id]) next[id] = { ...next[id], ...updates };
+            return next;
+        });
+    }, []);
+
+    const setHp = useCallback(
+        async (unitId: string, hp: number) => {
+            if (!gameId || !session?.accessToken) return;
+            try {
+                await api.post(
+                    `/game/${gameId}/units/${unitId}/hp/set`,
+                    { hp },
+                    session.accessToken,
+                );
+                updateUnit(unitId, { hp });
+            } catch (err) {
+                console.error("Set HP failed:", err);
+            }
+        },
+        [gameId, session?.accessToken, updateUnit],
+    );
+
+    const setArmor = useCallback(
+        async (unitId: string, armor: number) => {
+            if (!gameId || !session?.accessToken) return;
+            try {
+                await api.post(
+                    `/game/${gameId}/units/${unitId}/armor/set`,
+                    { armor },
+                    session.accessToken,
+                );
+                updateUnit(unitId, { armor });
+            } catch (err) {
+                console.error("Set armor failed:", err);
+            }
+        },
+        [gameId, session?.accessToken, updateUnit],
+    );
+
+    const setInitiative = useCallback(
+        async (unitId: string, initiative: number) => {
+            if (!gameId || !session?.accessToken) return;
+            try {
+                await api.post(
+                    `/game/${gameId}/units/${unitId}/initiative/set`,
+                    { initiative },
+                    session.accessToken,
+                );
+                updateUnit(unitId, { initiative });
+            } catch (err) {
+                console.error("Set initiative failed:", err);
+            }
+        },
+        [gameId, session?.accessToken, updateUnit],
+    );
 
     const addEffect = async (unitId: string, effectTypeId: string) => {
         if (!gameId || !session?.accessToken || isTogglingEffect || !room) return;
@@ -410,33 +488,123 @@ export default function RoomPage() {
             />
             <div className="w-full h-screen pt-[72px] pb-20 overflow-y-auto">
                 <div className="flex flex-col gap-4 px-4 items-center">
-                    {orderedUnits.map((unit) => (
-                        <ViewTransition key={unit.id} name={`room-unit-${unit.id}`}>
-                            <MainCard
-                                type={unit.is_monster ? "NPC" : "player"}
-                                isActive={room.active_unit_id === unit.id}
-                                showInitiative={true}
-                                characterName={unit.is_monster ? "" : unit.name}
-                                playerName={
-                                    unit.is_monster ? "" : tCard("playerName")
+                    {orderedUnits.map((unit) => {
+                        const isTheirTurn = room.active_unit_id === unit.id;
+                        const isPeekExpanded = expandedUnitId === unit.id;
+                        const showExpanded = isTheirTurn || isPeekExpanded;
+                        const canEditStats = showExpanded;
+
+                        return (
+                            <div
+                                key={unit.id}
+                                className={
+                                    !showExpanded && !isTheirTurn
+                                        ? "w-full cursor-pointer"
+                                        : "w-full"
                                 }
-                                name={unit.is_monster ? unit.name : undefined}
-                                avatarSrc={avatarSrc || undefined}
-                                hp={unit.hp}
-                                armor={unit.armor}
-                                initiative={unit.initiative}
-                                allEffects={ALL_CONDITIONS_AS_EFFECTS}
-                                effects={(unit.effects ?? []).map((e) => ({
-                                    id: e.id,
-                                    name: e.name,
-                                    description: e.description,
-                                }))}
-                                onEffectToggle={(effectId) =>
-                                    handleEffectToggle(unit.id, effectId)
+                                role={
+                                    !showExpanded && !isTheirTurn
+                                        ? "button"
+                                        : undefined
                                 }
-                            />
-                        </ViewTransition>
-                    ))}
+                                tabIndex={
+                                    !showExpanded && !isTheirTurn ? 0 : undefined
+                                }
+                                onClick={
+                                    !showExpanded && !isTheirTurn
+                                        ? () => setExpandedUnitId(unit.id)
+                                        : undefined
+                                }
+                                onKeyDown={
+                                    !showExpanded && !isTheirTurn
+                                        ? (e) => {
+                                              if (
+                                                  e.key === "Enter" ||
+                                                  e.key === " "
+                                              ) {
+                                                  e.preventDefault();
+                                                  setExpandedUnitId(unit.id);
+                                              }
+                                          }
+                                        : undefined
+                                }
+                            >
+                                <ViewTransition name={`room-unit-${unit.id}`}>
+                                    <MainCard
+                                        type={
+                                            unit.is_monster ? "NPC" : "player"
+                                        }
+                                        isActive={showExpanded}
+                                        showInitiative={true}
+                                        characterName={
+                                            unit.is_monster ? "" : unit.name
+                                        }
+                                        playerName={
+                                            unit.is_monster
+                                                ? ""
+                                                : tCard("playerName")
+                                        }
+                                        name={
+                                            unit.is_monster
+                                                ? unit.name
+                                                : undefined
+                                        }
+                                        avatarSrc={avatarSrc || undefined}
+                                        hp={unit.hp}
+                                        armor={unit.armor}
+                                        initiative={unit.initiative}
+                                        allEffects={ALL_CONDITIONS_AS_EFFECTS}
+                                        effects={(
+                                            unit.effects ?? []
+                                        ).map((e) => ({
+                                            id: e.id,
+                                            name: e.name,
+                                            description: e.description,
+                                        }))}
+                                        onEffectToggle={(effectId) =>
+                                            handleEffectToggle(
+                                                unit.id,
+                                                effectId,
+                                            )
+                                        }
+                                        isConcentrated={false}
+                                        onConcentrationChange={
+                                            canEditStats
+                                                ? () => {}
+                                                : undefined
+                                        }
+                                        onHpChange={
+                                            canEditStats
+                                                ? (value) =>
+                                                      setHp(unit.id, value)
+                                                : undefined
+                                        }
+                                        onArmorChange={
+                                            canEditStats
+                                                ? (value) =>
+                                                      setArmor(unit.id, value)
+                                                : undefined
+                                        }
+                                        onInitiativeChange={
+                                            canEditStats
+                                                ? (value) =>
+                                                      setInitiative(
+                                                          unit.id,
+                                                          value,
+                                                      )
+                                                : undefined
+                                        }
+                                        onNameClick={
+                                            isPeekExpanded && !isTheirTurn
+                                                ? () =>
+                                                      setExpandedUnitId(null)
+                                                : undefined
+                                        }
+                                    />
+                                </ViewTransition>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Bottom battle controls */}

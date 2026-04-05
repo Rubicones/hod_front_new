@@ -11,6 +11,8 @@ type Props = {
     showDone?: boolean;
     showShare?: boolean;
     showInitiativeIcon?: boolean;
+    /** Isolate fixed bar from root VT crossfade (game session + View Transitions). */
+    viewTransitionFixedChrome?: boolean;
     onCancelClick?: () => void;
     onChevronClick?: () => void;
     onDoneClick?: () => void;
@@ -28,6 +30,7 @@ const TopToolbar = ({
     showDone = false,
     showShare = false,
     showInitiativeIcon = false,
+    viewTransitionFixedChrome = false,
     onCancelClick,
     onChevronClick,
     onDoneClick,
@@ -40,8 +43,11 @@ const TopToolbar = ({
 
     return (
         <div
-            className='fixed top-0 left-0 right-0 z-50'
-          
+            className={
+                viewTransitionFixedChrome
+                    ? "fixed top-0 left-0 right-0 z-50 view-transition-fixed-chrome"
+                    : "fixed top-0 left-0 right-0 z-50"
+            }
         >
             <div className='flex items-center justify-between w-full px-4 py-3 min-h-[56px]'>
                 {/* Left Section */}

@@ -40,6 +40,8 @@ type MainCardProps =
           onHpChange?: (value: number) => void;
           onArmorChange?: (value: number) => void;
           onInitiativeChange?: (value: number) => void;
+          /** Room: collapse expanded off-turn card when name is clicked */
+          onNameClick?: () => void;
       }
     | {
           isActive: boolean;
@@ -57,6 +59,7 @@ type MainCardProps =
           onHpChange?: (value: number) => void;
           onArmorChange?: (value: number) => void;
           onInitiativeChange?: (value: number) => void;
+          onNameClick?: () => void;
       };
 
 export type Props = MainCardProps;
@@ -215,6 +218,7 @@ const MainCard = (props: Props) => {
             onHpChange,
             onArmorChange,
             onInitiativeChange,
+            onNameClick,
         } = props;
 
         return (
@@ -232,6 +236,7 @@ const MainCard = (props: Props) => {
                             characterName={characterName}
                             userName={playerName}
                             variant='dark'
+                            onCharacterNameClick={onNameClick}
                         />
                     </div>
                 </div>
@@ -335,6 +340,8 @@ const MainCard = (props: Props) => {
             "onInitiativeChange" in props
                 ? props.onInitiativeChange
                 : undefined;
+        const onNameClick =
+            "onNameClick" in props ? props.onNameClick : undefined;
 
         return (
             <div className='w-full flex flex-col gap-[6px] bg-time-stop p-2 rounded-2xl'>
@@ -343,6 +350,7 @@ const MainCard = (props: Props) => {
                         characterName={name}
                         userName={"NPC"}
                         variant='light'
+                        onCharacterNameClick={onNameClick}
                     />
                 </div>
 

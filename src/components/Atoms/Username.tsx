@@ -4,9 +4,37 @@ type Props = {
     characterName: string;
     userName: string;
     variant: "light" | "dark";
+    /** When set, the character name is clickable (e.g. collapse expanded room card). */
+    onCharacterNameClick?: () => void;
 };
 
-const Username = ({ characterName, userName, variant = "dark" }: Props) => {
+const Username = ({
+    characterName,
+    userName,
+    variant = "dark",
+    onCharacterNameClick,
+}: Props) => {
+    const nameClass =
+        "text-lg font-medium text-genele-repose capitalize leading-tight";
+
+    const nameEl = onCharacterNameClick ? (
+        <button
+            type="button"
+            className={classNames(
+                nameClass,
+                "w-full bg-transparent border-0 p-0 text-left cursor-pointer hover:opacity-90",
+            )}
+            onClick={(e) => {
+                e.stopPropagation();
+                onCharacterNameClick();
+            }}
+        >
+            {characterName}
+        </button>
+    ) : (
+        <p className={nameClass}>{characterName}</p>
+    );
+
     return (
         <div
             className={classNames(
@@ -22,9 +50,7 @@ const Username = ({ characterName, userName, variant = "dark" }: Props) => {
                         : "flex-col items-start"
                 )}
             >
-                <p className='text-lg font-medium text-genele-repose capitalize leading-tight'>
-                    {characterName}
-                </p>
+                {nameEl}
                 <p className='text-lg font-medium text-crusaders-mantle capitalize leading-tight'>
                     {userName}
                 </p>

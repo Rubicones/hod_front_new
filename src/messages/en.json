@@ -55,7 +55,17 @@
     "startingFight": "Starting…",
     "fightName": "Fight scene name",
     "addToFight": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "findMonster": "Find monster",
+    "searchMonstersPlaceholder": "Search monsters…",
+    "monsterLoading": "Loading catalog…",
+    "monsterLoadError": "Could not load monsters. Try again.",
+    "monsterAddError": "Could not add this monster.",
+    "closeMonsterFinder": "Close",
+    "monsterRetry": "Try again",
+    "noMonsterMatches": "No monsters match your search.",
+    "existingRooms": "Ongoing battles",
+    "enterRoom": "Enter room"
   },
   "card": {
     "characterName": "Character name",

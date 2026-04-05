@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import { ViewTransition } from "react";
+import { ViewTransition, type ReactNode } from "react";
 import Avatar from "../Molecules/Avatar";
 import Input from "../Atoms/Input";
 import ToggleInput from "../Molecules/ToggleInput";
@@ -30,6 +30,8 @@ type NewCardProps =
           hp?: number;
           armor?: number;
           initiative?: number;
+          /** When false, draft cards skip ViewTransition (e.g. game setup: avoids VT + fixed toolbar issues). */
+          enableViewTransition?: boolean;
       }
     | {
           type: "NPC";
@@ -114,9 +116,11 @@ const NewCard = (props: Props) => {
             hp,
             armor,
             initiative,
+            enableViewTransition = true,
         } = props;
 
         const vtNs = `newcard-${cardId ?? "default"}`;
+        const Vt = enableViewTransition ? ViewTransition : StaticVt;
 
         return (
             <div className="w-full flex flex-col gap-[6px] bg-time-stop rounded-2xl p-4">
@@ -128,7 +132,7 @@ const NewCard = (props: Props) => {
                     )}
                 >
                     {!isMonster && (
-                        <ViewTransition name={`${vtNs}-avatar`}>
+                        <Vt name={`${vtNs}-avatar`}>
                             <button
                                 type="button"
                                 onClick={onAvatarClick}
@@ -141,7 +145,7 @@ const NewCard = (props: Props) => {
                                     withPattern={false}
                                 />
                             </button>
-                        </ViewTransition>
+                        </Vt>
                     )}
                     <div
                         className={classNames(
@@ -149,27 +153,27 @@ const NewCard = (props: Props) => {
                             isMonster ? "w-full" : "flex-1"
                         )}
                     >
-                        <ViewTransition name={`${vtNs}-name`}>
+                        <Vt name={`${vtNs}-name`}>
                             <Input
                                 placeholder={tCard("characterName")}
                                 defaultValue={characterName}
                                 onChange={onCharacterNameChange}
                             />
-                        </ViewTransition>
+                        </Vt>
                         {!isMonster && (
-                            <ViewTransition name={`${vtNs}-player-name`}>
+                            <Vt name={`${vtNs}-player-name`}>
                                 <Input
                                     placeholder={tCard("playerName")}
                                     defaultValue={playerName}
                                     onChange={onPlayerNameChange}
                                 />
-                            </ViewTransition>
+                            </Vt>
                         )}
                     </div>
                 </div>
 
                 {/* Body: Monster toggle, HP, Armor, Languages, Remove — moves up into freed space */}
-                <ViewTransition name={`${vtNs}-body`}>
+                <Vt name={`${vtNs}-body`}>
                     <div className="flex flex-col gap-2">
                         <ToggleInput
                             label={tCard("monster")}
@@ -201,13 +205,24 @@ const NewCard = (props: Props) => {
                             onClick={onDelete}
                         />
                     </div>
-                </ViewTransition>
+                </Vt>
             </div>
         );
     }
 
     return null;
 };
+
+/** Renders children only — used when ViewTransition would churn the document snapshot. */
+function StaticVt({
+    name: _name,
+    children,
+}: {
+    name: string;
+    children: ReactNode;
+}) {
+    return <>{children}</>;
+}
 
 export default NewCard;
 

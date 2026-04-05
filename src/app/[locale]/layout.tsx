@@ -1,6 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
-import SessionProvider from "@/components/Providers/SessionProvider";
 import "../globals.css";
 
 export default async function LocaleLayout({
@@ -19,11 +18,9 @@ export default async function LocaleLayout({
   }
 
   return (
-    <SessionProvider>
-      <NextIntlClientProvider locale={locale} messages={messages}>
-        {children}
-      </NextIntlClientProvider>
-    </SessionProvider>
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      {children}
+    </NextIntlClientProvider>
   );
 }
 
