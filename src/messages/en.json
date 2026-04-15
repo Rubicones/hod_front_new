@@ -83,6 +83,7 @@
   },
   "settings": {
     "description": "Choose what info will appear in your profile",
+    "nameLabel": "Name",
     "gamesLabel": "Number of games",
     "hoursLabel": "Hours in game",
     "nothingLabel": "Nothing",
@@ -90,7 +91,8 @@
     "languageRussian": "Russian",
     "languageEnglish": "English",
     "changePassword": "Change password",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "nameUpdateFailed": "Failed to update name"
   },
   "profile": {
     "totalGames": "Total games",

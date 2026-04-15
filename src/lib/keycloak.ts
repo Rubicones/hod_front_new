@@ -2,8 +2,6 @@ const KEYCLOAK_URL = process.env.KEYCLOAK_URL!;
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM!;
 const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID!;
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET!;
-const KEYCLOAK_ADMIN_CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID!;
-const KEYCLOAK_ADMIN_CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET!;
 
 export interface KeycloakTokenResponse {
     access_token: string;
@@ -27,7 +25,6 @@ async function getAdminToken(): Promise<string> {
     const tokenUrl = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
 
     console.log("[Keycloak] Getting admin token from:", tokenUrl);
-    console.log("[Keycloak] Using client:", KEYCLOAK_ADMIN_CLIENT_ID);
 
     const response = await fetch(tokenUrl, {
         method: "POST",
@@ -36,8 +33,8 @@ async function getAdminToken(): Promise<string> {
         },
         body: new URLSearchParams({
             grant_type: "client_credentials",
-            client_id: KEYCLOAK_ADMIN_CLIENT_ID,
-            client_secret: KEYCLOAK_ADMIN_CLIENT_SECRET,
+            client_id: KEYCLOAK_CLIENT_ID,
+            client_secret: KEYCLOAK_CLIENT_SECRET,
         }),
     });
 

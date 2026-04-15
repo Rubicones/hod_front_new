@@ -18,6 +18,7 @@ type Props = {
     className?: string;
     name?: string;
     inputMode?: "email" | "search" | "text" | "tel" | "url" | "none" | "numeric" | "decimal" | undefined;
+    iconType?: "insight" | "investigation" | "perception" | "armor" | "initiative" | "hp";
 };
 
 const DEFAULT_PLACEHOLDERS = [
@@ -40,26 +41,28 @@ const Input = ({
     className,
     name,
     inputMode = "text",
+    iconType,
 }: Props) => {
     const [value, setValue] = useState(defaultValue);
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Get the appropriate icon based on placeholder
+    const resolvedIconType = iconType ?? placeholder.toLowerCase();
+
+    // Get the appropriate icon based on explicit iconType or placeholder fallback.
     const getIcon = (state?: string, size?: number) => {
-        const placeholderLower = placeholder.toLowerCase();
-        if (placeholderLower === "insight")
+        if (resolvedIconType === "insight")
             return <InsightIcon state={state} size={size} />;
-        if (placeholderLower === "investigation")
+        if (resolvedIconType === "investigation")
             return <InvestigationIcon state={state} size={size} />;
-        if (placeholderLower === "perception")
+        if (resolvedIconType === "perception")
             return <PerceptionIcon state={state} size={size} />;
-        if (placeholderLower === "armor")
+        if (resolvedIconType === "armor")
             return <ArmorIcon state={state} size={size} />;
-        if (placeholderLower === "initiative")
+        if (resolvedIconType === "initiative")
             return <InitiativeIcon state={state} size={size} />;
-        if (placeholderLower === "hp")
+        if (resolvedIconType === "hp")
             return <HpIcon state={state} size={size} />;
     };
 
@@ -163,7 +166,7 @@ const Input = ({
                 >
                     {placeholder}
                 </span>
-                {DEFAULT_PLACEHOLDERS.includes(placeholder.toLowerCase()) && (
+                {DEFAULT_PLACEHOLDERS.includes(resolvedIconType) && (
                     <div className='absolute top-[10px] right-4 z-20 pointer-events-none flex items-center'>
                         {getIcon(isActive ? "active" : "inactive")}
                     </div>

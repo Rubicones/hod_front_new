@@ -40,8 +40,11 @@ type MainCardProps =
           onHpChange?: (value: number) => void;
           onArmorChange?: (value: number) => void;
           onInitiativeChange?: (value: number) => void;
+          onRemove?: () => void;
+          removeLabel?: string;
           /** Room: collapse expanded off-turn card when name is clicked */
           onNameClick?: () => void;
+          initiativeOnly?: boolean;
       }
     | {
           isActive: boolean;
@@ -59,7 +62,10 @@ type MainCardProps =
           onHpChange?: (value: number) => void;
           onArmorChange?: (value: number) => void;
           onInitiativeChange?: (value: number) => void;
+          onRemove?: () => void;
+          removeLabel?: string;
           onNameClick?: () => void;
+          initiativeOnly?: boolean;
       };
 
 export type Props = MainCardProps;
@@ -91,7 +97,12 @@ const MainCard = (props: Props) => {
 
     // Inactive Player Card
     if (props.type === "player" && !isActive) {
-        const { characterName, playerName, avatarSrc } = props;
+        const {
+            characterName,
+            playerName,
+            avatarSrc,
+            initiativeOnly = false,
+        } = props;
         return (
             <div className='relative w-full  bg-time-stop rounded-[20px] overflow-hidden'>
                 {/* Content */}
@@ -105,16 +116,20 @@ const MainCard = (props: Props) => {
                                 variant='light'
                             />
                             <div className='flex items-center gap-2 mt-1 flex-wrap'>
-                                <StatsSmall
-                                    type='hp'
-                                    value={hp ?? 0}
-                                    size={16}
-                                />
-                                <StatsSmall
-                                    type='armor'
-                                    value={armor ?? 0}
-                                    size={16}
-                                />
+                                {!initiativeOnly && (
+                                    <>
+                                        <StatsSmall
+                                            type='hp'
+                                            value={hp ?? 0}
+                                            size={16}
+                                        />
+                                        <StatsSmall
+                                            type='armor'
+                                            value={armor ?? 0}
+                                            size={16}
+                                        />
+                                    </>
+                                )}
                                 {showInitiative && (
                                     <StatsSmall
                                         type='initiative'
@@ -151,6 +166,8 @@ const MainCard = (props: Props) => {
     // Inactive NPC Card
     if (props.type === "NPC" && !isActive) {
         const name = props.name || tCard("monster");
+        const initiativeOnly =
+            "initiativeOnly" in props ? props.initiativeOnly || false : false;
         return (
             <div className='relative w-full  bg-time-stop rounded-[20px] overflow-hidden'>
                 {/* Content */}
@@ -164,16 +181,20 @@ const MainCard = (props: Props) => {
                                 variant='light'
                             />
                             <div className='flex items-center gap-2 mt-1 flex-wrap'>
-                                <StatsSmall
-                                    type='hp'
-                                    value={hp ?? 0}
-                                    size={16}
-                                />
-                                <StatsSmall
-                                    type='armor'
-                                    value={armor ?? 0}
-                                    size={16}
-                                />
+                                {!initiativeOnly && (
+                                    <>
+                                        <StatsSmall
+                                            type='hp'
+                                            value={hp ?? 0}
+                                            size={16}
+                                        />
+                                        <StatsSmall
+                                            type='armor'
+                                            value={armor ?? 0}
+                                            size={16}
+                                        />
+                                    </>
+                                )}
                                 {showInitiative && (
                                     <StatsSmall
                                         type='initiative'
@@ -218,8 +239,33 @@ const MainCard = (props: Props) => {
             onHpChange,
             onArmorChange,
             onInitiativeChange,
+            onRemove,
+            removeLabel = "Remove",
             onNameClick,
+            initiativeOnly = false,
         } = props;
+
+        if (initiativeOnly) {
+            return (
+                <div className='w-full flex flex-col rounded-2xl bg-time-stop p-4'>
+                    <div className='flex items-center justify-between gap-3'>
+                        <div className='flex-1 min-w-0'>
+                            <Username
+                                characterName={characterName}
+                                userName={playerName}
+                                variant='dark'
+                                onCharacterNameClick={onNameClick}
+                            />
+                        </div>
+                        <StatsSmall
+                            type='initiative'
+                            value={initiative ?? 0}
+                            size={16}
+                        />
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className='w-full flex flex-col rounded-2xl bg-time-stop p-4'>
@@ -266,6 +312,7 @@ const MainCard = (props: Props) => {
                                 <Input
                                     key={`hp-${hp}`}
                                     placeholder={tCard("hp")}
+                                    iconType='hp'
                                     defaultValue={hp?.toString() || ""}
                                     onChange={(e) => {
                                         const v = parseInt(e.target.value, 10);
@@ -277,6 +324,7 @@ const MainCard = (props: Props) => {
                                 <Input
                                     key={`armor-${armor}`}
                                     placeholder={tCard("armor")}
+                                    iconType='armor'
                                     defaultValue={armor?.toString() || ""}
                                     onChange={(e) => {
                                         const v = parseInt(e.target.value, 10);
@@ -288,6 +336,7 @@ const MainCard = (props: Props) => {
                                 <Input
                                     key={`init-${initiative}`}
                                     placeholder={tCard("initiative")}
+                                    iconType='initiative'
                                     defaultValue={initiative?.toString() || ""}
                                     onChange={(e) => {
                                         const v = parseInt(e.target.value, 10);
@@ -315,6 +364,7 @@ const MainCard = (props: Props) => {
                         <div className='w-full flex flex-col gap-[6px]'>
                             <Input
                                 placeholder={tCard("initiative")}
+                                iconType='initiative'
                                 defaultValue={initiative?.toString() || ""}
                                 onChange={() => {}}
                             />
@@ -324,6 +374,16 @@ const MainCard = (props: Props) => {
                                 onChange={onConcentrationChange}
                             />
                         </div>
+                    </>
+                )}
+                {onRemove && (
+                    <>
+                        <div className='w-full my-3 h-px bg-find-the-path'></div>
+                        <Button
+                            text={removeLabel}
+                            variant='error_small'
+                            onClick={onRemove}
+                        />
                     </>
                 )}
             </div>
@@ -342,6 +402,31 @@ const MainCard = (props: Props) => {
                 : undefined;
         const onNameClick =
             "onNameClick" in props ? props.onNameClick : undefined;
+        const onRemove = "onRemove" in props ? props.onRemove : undefined;
+        const removeLabel =
+            "removeLabel" in props ? props.removeLabel || "Remove" : "Remove";
+        const initiativeOnly =
+            "initiativeOnly" in props ? props.initiativeOnly || false : false;
+
+        if (initiativeOnly) {
+            return (
+                <div className='w-full flex flex-col rounded-2xl bg-time-stop p-4'>
+                    <div className='w-full flex items-center justify-between gap-3'>
+                        <Username
+                            characterName={name}
+                            userName={"NPC"}
+                            variant='light'
+                            onCharacterNameClick={onNameClick}
+                        />
+                        <StatsSmall
+                            type='initiative'
+                            value={initiative ?? 0}
+                            size={16}
+                        />
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className='w-full flex flex-col gap-[6px] bg-time-stop p-2 rounded-2xl'>
@@ -365,6 +450,7 @@ const MainCard = (props: Props) => {
                 {/* Armor */}
                 <Input
                     placeholder={tCard("armor")}
+                    iconType='armor'
                     displayMode={!onArmorChange}
                     defaultValue={armor?.toString() || ""}
                     onChange={(e) => {
@@ -377,6 +463,7 @@ const MainCard = (props: Props) => {
                 {/* HP */}
                 <Input
                     placeholder={tCard("hp")}
+                    iconType='hp'
                     displayMode={!onHpChange}
                     defaultValue={hp?.toString() || ""}
                     onChange={(e) => {
@@ -391,6 +478,7 @@ const MainCard = (props: Props) => {
                         {onInitiativeChange ? (
                             <Input
                                 placeholder={tCard("initiative")}
+                                iconType='initiative'
                                 defaultValue={initiative?.toString() || ""}
                                 onChange={(e) => {
                                     const v = parseInt(e.target.value, 10);
@@ -401,6 +489,7 @@ const MainCard = (props: Props) => {
                         ) : (
                             <Input
                                 placeholder={tCard("initiative")}
+                                iconType='initiative'
                                 defaultValue={initiative?.toString() || ""}
                                 onChange={() => {}}
                             />
@@ -411,6 +500,13 @@ const MainCard = (props: Props) => {
                             onChange={onConcentrationChange}
                         />
                     </div>
+                )}
+                {onRemove && (
+                    <Button
+                        text={removeLabel}
+                        variant='error_small'
+                        onClick={onRemove}
+                    />
                 )}
             </div>
         );

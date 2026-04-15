@@ -1,6 +1,7 @@
 import Button from "@/components/Atoms/Button";
 import FilterList from "@/components/Atoms/FilterList";
 import FilterRow from "@/components/Atoms/FilterRow";
+import Input from "@/components/Atoms/Input";
 import { AppLanguage, ProfilePreference, TimePeriod } from "./types";
 import { useTranslations } from "next-intl";
 
@@ -13,8 +14,10 @@ const timeOptions = [
 
 type SettingsViewProps = {
     userName: string;
+    draftUserName: string;
     preference: ProfilePreference;
     onPreferenceChange: (pref: ProfilePreference) => void;
+    onUserNameChange: (value: string) => void;
     onChangePassword: () => void;
     onSignOut: () => void;
     selectedLanguage: AppLanguage;
@@ -23,8 +26,10 @@ type SettingsViewProps = {
 
 export default function SettingsView({
     userName,
+    draftUserName,
     preference,
     onPreferenceChange,
+    onUserNameChange,
     onChangePassword,
     onSignOut,
     selectedLanguage,
@@ -33,15 +38,16 @@ export default function SettingsView({
     const t = useTranslations("settings");
     return (
         <div className='w-full h-full flex flex-col px-4 pt-16 pb-32'>
-            {/* User info */}
-            <div className='mb-2'>
-                <span className='text-white text-lg font-medium'>
-                    {userName}
-                </span>
+            <div className='mb-6'>
+                <Input
+                    placeholder={t("nameLabel")}
+                    defaultValue={draftUserName}
+                    onChange={(e) => onUserNameChange(e.target.value)}
+                />
             </div>
 
             {/* Description */}
-            <p className='text-white/50 text-sm mt-6 mb-4'>
+            <p className='text-white/50 text-sm mb-4'>
                 {t("description")}
             </p>
 

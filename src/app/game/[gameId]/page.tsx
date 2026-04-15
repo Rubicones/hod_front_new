@@ -8,7 +8,8 @@ import TopToolbar from "@/components/Atoms/TopToolbar";
 import { GameStartingScreen, type GameSnapshot, type GameUnit } from "@/components/Tabs";
 import type { RoomEntry } from "@/components/Molecules/RoomEntryList";
 import { api } from "@/lib/api";
-import { setLastGameId } from "@/lib/gameStorage";
+import { getGameIdForCode, setGameIdForCode, setLastGameId } from "@/lib/gameStorage";
+import { getUserId, setUserId } from "@/lib/userStorage";
 import { useLocale, useTranslations } from "next-intl";
 
 type RawGameUnit = {
@@ -30,6 +31,20 @@ type RawGameUnit = {
 type RawRoom = {
     id?: string;
     name?: string;
+};
+
+type RawGameMember = {
+    user_id?: string;
+    nickname?: string;
+    role?: string;
+    character_ids?: string[];
+};
+
+type GameMember = {
+    userId: string;
+    nickname: string;
+    role: string;
+    characterIds: string[];
 };
 
 function parseRoomsList(roomsRaw: unknown): RoomEntry[] {
@@ -59,9 +74,34 @@ function parseRoomsList(roomsRaw: unknown): RoomEntry[] {
         }));
 }
 
+function parseMembersList(membersRaw: unknown): GameMember[] {
+    if (!membersRaw || typeof membersRaw !== "object") return [];
+
+    const rawMembersContainer = membersRaw as
+        | { items?: Record<string, RawGameMember> }
+        | Record<string, RawGameMember>;
+
+    const membersMap =
+        "items" in rawMembersContainer &&
+        rawMembersContainer.items &&
+        typeof rawMembersContainer.items === "object"
+            ? (rawMembersContainer.items as Record<string, RawGameMember>)
+            : (rawMembersContainer as Record<string, RawGameMember>);
+
+    return Object.values(membersMap)
+        .filter((m) => typeof m.user_id === "string" && m.user_id.length > 0)
+        .map((m) => ({
+            userId: m.user_id as string,
+            nickname: m.nickname ?? "",
+            role: m.role ?? "",
+            characterIds: Array.isArray(m.character_ids) ? m.character_ids : [],
+        }));
+}
+
 function parseSnapshotResponse(data: {
     units?: Record<string, RawGameUnit>;
     rooms?: unknown;
+    members?: unknown;
 }): GameSnapshot {
     const rawUnits = data?.units ?? {};
     const units: Record<string, GameUnit> = Object.fromEntries(
@@ -75,9 +115,10 @@ function parseSnapshotResponse(data: {
                 armor: u.armor ?? 0,
                 initiative: u.initiative ?? 0,
                 effects: (u.effects ?? []).map((e) => ({
-                    id: e.id ?? e.template_key ?? "",
+                    id: e.template_key ?? e.id ?? "",
                     name: e.name ?? "",
                     description: e.description ?? "",
+                    effectInstanceId: e.id,
                 })),
                 owner_id: u.owner_id,
             },
@@ -86,6 +127,7 @@ function parseSnapshotResponse(data: {
     return {
         units,
         rooms: parseRoomsList(data?.rooms),
+        members: parseMembersList(data?.members),
     };
 }
 
@@ -119,31 +161,82 @@ export default function GamePage() {
     useEffect(() => {
         if (!gameCode || !session?.accessToken) return;
 
+        const getCurrentUserId = async () => {
+            const stored = getUserId();
+            if (stored) return stored;
+
+            const me = await api.get<{ id?: string }>("/user/me", session.accessToken);
+            if (me?.id) {
+                setUserId(me.id);
+                return me.id;
+            }
+            return null;
+        };
+
         const loadSession = async () => {
             setLoading(true);
             setError(null);
             try {
-                const sessions = await api.get<Array<{ id: string; code: string }>>(
-                    "/game/all",
-                    session.accessToken,
-                );
-                const match = sessions?.find(
-                    (s) => s.code?.toUpperCase() === gameCode.toUpperCase(),
-                );
-                if (!match) {
+                const cachedGameId = getGameIdForCode(gameCode);
+                let resolvedGameId = cachedGameId;
+                let resolvedCode = gameCode;
+
+                if (!resolvedGameId) {
+                    const sessions = await api.get<Array<{ id: string; code: string }>>(
+                        "/game/all",
+                        session.accessToken,
+                    );
+                    const match = sessions?.find(
+                        (s) => s.code?.toUpperCase() === gameCode.toUpperCase(),
+                    );
+                    if (!match) {
+                        setError(tErrors("sessionNotFound"));
+                        setLoading(false);
+                        return;
+                    }
+                    resolvedGameId = match.id;
+                    resolvedCode = match.code;
+                    setGameIdForCode(resolvedCode, resolvedGameId);
+                }
+
+                if (!resolvedGameId) {
                     setError(tErrors("sessionNotFound"));
                     setLoading(false);
                     return;
                 }
-                const snapshotRes = await api.post<{
-                    data?: {
-                        units?: Record<string, RawGameUnit>;
-                        rooms?: unknown;
-                    };
-                }>(`/game/${match.id}/get_snapshot`, {}, session.accessToken);
-                const parsed = parseSnapshotResponse(snapshotRes?.data ?? {});
+
+                const fetchSnapshot = () =>
+                    api.post<{
+                        data?: {
+                            units?: Record<string, RawGameUnit>;
+                            rooms?: unknown;
+                            members?: unknown;
+                        };
+                    }>(`/game/${resolvedGameId}/get_snapshot`, {}, session.accessToken);
+
+                let snapshotRes = await fetchSnapshot();
+                let parsed = parseSnapshotResponse(snapshotRes?.data ?? {});
+                const currentUserId = await getCurrentUserId();
+
+                const isCurrentUserMember =
+                    !!currentUserId &&
+                    (parsed.members ?? []).some(
+                        (member) => member.userId === currentUserId,
+                    );
+
+                // If user opened by code but is not a member yet, register in this game first.
+                if (currentUserId && !isCurrentUserMember) {
+                    await api.post(
+                        "/game/join",
+                        { code: resolvedCode },
+                        session.accessToken,
+                    );
+                    snapshotRes = await fetchSnapshot();
+                    parsed = parseSnapshotResponse(snapshotRes?.data ?? {});
+                }
+
                 setSnapshot(parsed);
-                setGameId(match.id);
+                setGameId(resolvedGameId);
                 setLastGameId(gameCode);
             } catch (err) {
                 setError(

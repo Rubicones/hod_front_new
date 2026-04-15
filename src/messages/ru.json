@@ -83,6 +83,7 @@
   },
   "settings": {
     "description": "Выберите, какая информация будет отображаться в профиле",
+    "nameLabel": "Имя",
     "gamesLabel": "Количество игр",
     "hoursLabel": "Количество часов в игре",
     "nothingLabel": "Ничего",
@@ -90,7 +91,8 @@
     "languageRussian": "Русский",
     "languageEnglish": "English",
     "changePassword": "Поменять пароль",
-    "signOut": "Выйти"
+    "signOut": "Выйти",
+    "nameUpdateFailed": "Не удалось обновить имя"
   },
   "profile": {
     "totalGames": "Количество игр",

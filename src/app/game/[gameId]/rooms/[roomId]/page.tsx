@@ -15,6 +15,8 @@ import LoadingScreen from "@/components/Atoms/LoadingScreen";
 import MainCard from "@/components/Organisms/MainCard";
 import InitiativeIcon from "@/components/Icons/InitiativeIcon";
 import { api } from "@/lib/api";
+import { getGameIdForCode, setGameIdForCode } from "@/lib/gameStorage";
+import { getUserId } from "@/lib/userStorage";
 import avatarPlaceholder from "@/app/images/elfIconMale.png";
 import { conditions } from "@/data/conditions";
 import { useLocale, useTranslations } from "next-intl";
@@ -77,8 +79,23 @@ type SnapshotResponse = {
     snapshot?: {
         units?: Record<string, RawGameUnit>;
         rooms?: { items?: Record<string, RawRoom> } | Record<string, RawRoom>;
+        members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
     };
     data?: SnapshotResponse["snapshot"];
+};
+
+type RawGameMember = {
+    user_id?: string;
+    nickname?: string;
+    role?: string;
+    character_ids?: string[];
+};
+
+type GameMember = {
+    userId: string;
+    nickname: string;
+    role: string;
+    characterIds: string[];
 };
 
 const avatarSrc =
@@ -118,13 +135,29 @@ function parseUnits(rawUnits: Record<string, RawGameUnit> = {}): Record<string, 
 function parseRoomSnapshot(
     raw: SnapshotResponse | any,
     roomIdParam: string,
-): { units: Record<string, GameUnit>; room: ParsedRoom | null } {
+): { units: Record<string, GameUnit>; room: ParsedRoom | null; members: GameMember[] } {
     const snapshot = (raw?.snapshot ??
         raw?.data?.snapshot ??
         raw?.data ??
         raw) as SnapshotResponse["snapshot"] | undefined;
 
     const units = parseUnits(snapshot?.units ?? {});
+    const rawMembersContainer = snapshot?.members as
+        | { items?: Record<string, RawGameMember> }
+        | Record<string, RawGameMember>
+        | undefined;
+    const membersMap =
+        rawMembersContainer && "items" in rawMembersContainer
+            ? rawMembersContainer.items ?? {}
+            : rawMembersContainer ?? {};
+    const members: GameMember[] = Object.values(membersMap)
+        .filter((m) => typeof m.user_id === "string" && m.user_id.length > 0)
+        .map((m) => ({
+            userId: m.user_id as string,
+            nickname: m.nickname ?? "",
+            role: m.role ?? "",
+            characterIds: Array.isArray(m.character_ids) ? m.character_ids : [],
+        }));
 
     const rawRoomsContainer = snapshot?.rooms as
         | { items?: Record<string, RawRoom> }
@@ -150,6 +183,7 @@ function parseRoomSnapshot(
         return {
             units,
             room: null,
+            members,
         };
     }
 
@@ -161,6 +195,7 @@ function parseRoomSnapshot(
 
     return {
         units,
+        members,
         room: {
             id: rawRoom.id ?? roomIdParam,
             name: rawRoom.name ?? "Room",
@@ -191,6 +226,23 @@ export default function RoomPage() {
     const [isTogglingEffect, setIsTogglingEffect] = useState(false);
     /** Off-turn unit opened for editing (HP, etc.); cleared on name click or turn change */
     const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
+    const [members, setMembers] = useState<GameMember[]>([]);
+    const currentUserId = useMemo(() => getUserId(), []);
+    const currentMember = useMemo(
+        () => members.find((m) => m.userId === currentUserId),
+        [currentUserId, members],
+    );
+    const isMaster = currentMember?.role === "master";
+    const currentMemberCharacterIds = useMemo(
+        () => new Set(currentMember?.characterIds ?? []),
+        [currentMember?.characterIds],
+    );
+    const memberNicknameByCharacterId = useMemo(() => {
+        const entries = members.flatMap((member) =>
+            member.characterIds.map((characterId) => [characterId, member.nickname] as const),
+        );
+        return Object.fromEntries(entries) as Record<string, string>;
+    }, [members]);
 
     useEffect(() => {
         if (status === "unauthenticated") {
@@ -211,21 +263,36 @@ export default function RoomPage() {
             setLoading(true);
             setError(null);
             try {
-                const sessions = await api.get<Array<{ id: string; code: string }>>(
-                    "/game/all",
-                    session.accessToken,
-                );
-                const match = sessions?.find(
-                    (s) => s.code?.toUpperCase() === gameCode.toUpperCase(),
-                );
-                if (!match) {
+                const cachedGameId = getGameIdForCode(gameCode);
+                let resolvedGameId = cachedGameId;
+                let resolvedCode = gameCode;
+
+                if (!resolvedGameId) {
+                    const sessions = await api.get<Array<{ id: string; code: string }>>(
+                        "/game/all",
+                        session.accessToken,
+                    );
+                    const match = sessions?.find(
+                        (s) => s.code?.toUpperCase() === gameCode.toUpperCase(),
+                    );
+                    if (!match) {
+                        setError(tErrors("sessionNotFound"));
+                        setLoading(false);
+                        return;
+                    }
+                    resolvedGameId = match.id;
+                    resolvedCode = match.code;
+                    setGameIdForCode(resolvedCode, resolvedGameId);
+                }
+
+                if (!resolvedGameId) {
                     setError(tErrors("sessionNotFound"));
                     setLoading(false);
                     return;
                 }
 
                 const snapshotRes = await api.post<SnapshotResponse>(
-                    `/game/${match.id}/get_snapshot`,
+                    `/game/${resolvedGameId}/get_snapshot`,
                     {},
                     session.accessToken,
                 );
@@ -233,7 +300,8 @@ export default function RoomPage() {
                 const parsed = parseRoomSnapshot(snapshotRes, roomIdParam);
                 setUnits(parsed.units);
                 setRoom(parsed.room);
-                setGameId(match.id);
+                setMembers(parsed.members);
+                setGameId(resolvedGameId);
             } catch (err) {
                 setError(
                     err instanceof Error
@@ -371,6 +439,7 @@ export default function RoomPage() {
             const parsed = parseRoomSnapshot(res, roomIdParam);
             setUnits(parsed.units);
             setRoom(parsed.room);
+            setMembers(parsed.members);
         } catch (err) {
             console.error("Add effect failed:", err);
         } finally {
@@ -388,13 +457,18 @@ export default function RoomPage() {
 
         setIsTogglingEffect(true);
         try {
-            const res = await api.delete<SnapshotResponse>(
-                `/game/${gameId}/units/${unitId}/effects/${effectInstanceId}`,
+            const res = await api.deleteWithBody<SnapshotResponse>(
+                `/game/${gameId}/units/effects/${effectInstanceId}`,
+                {
+                    unit_id: unitId,
+                    effect_id: effectInstanceId,
+                },
                 session.accessToken,
             );
             const parsed = parseRoomSnapshot(res, roomIdParam);
             setUnits(parsed.units);
             setRoom(parsed.room);
+            setMembers(parsed.members);
         } catch (err) {
             console.error("Remove effect failed:", err);
         } finally {
@@ -426,6 +500,7 @@ export default function RoomPage() {
             startTransition(() => {
                 setUnits(parsed.units);
                 setRoom(parsed.room);
+                setMembers(parsed.members);
             });
         } catch (err) {
             console.error("Next turn failed:", err);
@@ -463,7 +538,7 @@ export default function RoomPage() {
         <>
             <TopToolbar
                 showChevron
-                showDone
+                showDone={isMaster}
                 roundNumber={room.round_number}
                 title={gameCode}
                 doneLabel={tNav("end")}
@@ -490,33 +565,40 @@ export default function RoomPage() {
                 <div className="flex flex-col gap-4 px-4 items-center">
                     {orderedUnits.map((unit) => {
                         const isTheirTurn = room.active_unit_id === unit.id;
+                        const isOwnUnit =
+                            currentMemberCharacterIds.has(unit.id) ||
+                            (!!currentUserId && unit.owner_id === currentUserId);
+                        const canPlayerExpand = isOwnUnit;
+                        const showCompactForPlayer = !isMaster && !isOwnUnit;
                         const isPeekExpanded = expandedUnitId === unit.id;
-                        const showExpanded = isTheirTurn || isPeekExpanded;
-                        const canEditStats = showExpanded;
+                        const showExpanded = isMaster
+                            ? isTheirTurn || isPeekExpanded
+                            : isOwnUnit;
+                        const canEditStats = isMaster ? showExpanded : isOwnUnit;
 
                         return (
                             <div
                                 key={unit.id}
                                 className={
-                                    !showExpanded && !isTheirTurn
+                                    isMaster && !showExpanded && !isTheirTurn
                                         ? "w-full cursor-pointer"
                                         : "w-full"
                                 }
                                 role={
-                                    !showExpanded && !isTheirTurn
+                                    isMaster && !showExpanded && !isTheirTurn
                                         ? "button"
                                         : undefined
                                 }
                                 tabIndex={
-                                    !showExpanded && !isTheirTurn ? 0 : undefined
+                                    isMaster && !showExpanded && !isTheirTurn ? 0 : undefined
                                 }
                                 onClick={
-                                    !showExpanded && !isTheirTurn
+                                    isMaster && !showExpanded && !isTheirTurn
                                         ? () => setExpandedUnitId(unit.id)
                                         : undefined
                                 }
                                 onKeyDown={
-                                    !showExpanded && !isTheirTurn
+                                    isMaster && !showExpanded && !isTheirTurn
                                         ? (e) => {
                                               if (
                                                   e.key === "Enter" ||
@@ -534,7 +616,8 @@ export default function RoomPage() {
                                         type={
                                             unit.is_monster ? "NPC" : "player"
                                         }
-                                        isActive={showExpanded}
+                                        isActive={showCompactForPlayer ? false : showExpanded}
+                                        initiativeOnly={showCompactForPlayer}
                                         showInitiative={true}
                                         characterName={
                                             unit.is_monster ? "" : unit.name
@@ -542,7 +625,8 @@ export default function RoomPage() {
                                         playerName={
                                             unit.is_monster
                                                 ? ""
-                                                : tCard("playerName")
+                                                : memberNicknameByCharacterId[unit.id] ||
+                                                  tCard("playerName")
                                         }
                                         name={
                                             unit.is_monster
@@ -561,11 +645,14 @@ export default function RoomPage() {
                                             name: e.name,
                                             description: e.description,
                                         }))}
-                                        onEffectToggle={(effectId) =>
-                                            handleEffectToggle(
-                                                unit.id,
-                                                effectId,
-                                            )
+                                        onEffectToggle={
+                                            isMaster
+                                                ? (effectId) =>
+                                                      handleEffectToggle(
+                                                          unit.id,
+                                                          effectId,
+                                                      )
+                                                : () => {}
                                         }
                                         isConcentrated={false}
                                         onConcentrationChange={
@@ -595,7 +682,7 @@ export default function RoomPage() {
                                                 : undefined
                                         }
                                         onNameClick={
-                                            isPeekExpanded && !isTheirTurn
+                                            isMaster && isPeekExpanded && !isTheirTurn
                                                 ? () =>
                                                       setExpandedUnitId(null)
                                                 : undefined
@@ -608,46 +695,48 @@ export default function RoomPage() {
                 </div>
 
                 {/* Bottom battle controls */}
-                <div className="fixed bottom-4 left-0 right-0 flex justify-center pointer-events-none z-10">
-                    <div className="w-full px-4 pointer-events-auto">
-                        <div className="flex gap-1">
-                            <button
-                                type="button"
-                                className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center text-beacon-of-hope text-5xl"
-                            >
-                                +
-                            </button>
-                            <button
-                                type="button"
-                                className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center"
-                            >
-                                <InitiativeIcon size={32} state="active" />
-                            </button>
-                            <button
-                                type="button"
-                                className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center disabled:bg-find-the-path/40 disabled:opacity-60"
-                                onClick={handleNextTurn}
-                                disabled={isAdvancingTurn}
-                            >
-                                <svg
-                                    width="32"
-                                    height="32"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
+                {isMaster && (
+                    <div className="fixed bottom-4 left-0 right-0 flex justify-center pointer-events-none z-10">
+                        <div className="w-full px-4 pointer-events-auto">
+                            <div className="flex gap-1">
+                                <button
+                                    type="button"
+                                    className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center text-beacon-of-hope text-5xl"
                                 >
-                                    <path
-                                        d="M8 4L16 12L8 20"
-                                        stroke="white"
-                                        strokeWidth="1.8"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    />
-                                </svg>
-                            </button>
+                                    +
+                                </button>
+                                <button
+                                    type="button"
+                                    className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center"
+                                >
+                                    <InitiativeIcon size={32} state="active" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="flex-1 py-2 rounded-full bg-find-the-path/70 flex items-center justify-center disabled:bg-find-the-path/40 disabled:opacity-60"
+                                    onClick={handleNextTurn}
+                                    disabled={isAdvancingTurn}
+                                >
+                                    <svg
+                                        width="32"
+                                        height="32"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <path
+                                            d="M8 4L16 12L8 20"
+                                            stroke="white"
+                                            strokeWidth="1.8"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </>
     );

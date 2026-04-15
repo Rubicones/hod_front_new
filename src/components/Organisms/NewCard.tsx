@@ -16,9 +16,11 @@ type NewCardProps =
           isMonster?: boolean;
           onAvatarClick?: () => void;
           onDelete?: () => void;
+          showDelete?: boolean;
           onCharacterNameChange?: InputChangeHandler;
           onPlayerNameChange?: InputChangeHandler;
           onIsMonsterChange?: (checked: boolean) => void;
+          showMonsterToggle?: boolean;
           onHpChange?: InputChangeHandler;
           onArmorChange?: InputChangeHandler;
           onInitiativeChange?: (value: number) => void;
@@ -74,6 +76,7 @@ const NewCard = (props: Props) => {
                 {/* HP */}
                 <Input
                     placeholder={tCard("hp")}
+                    iconType='hp'
                     defaultValue={hp?.toString() || ""}
                     onChange={onHpChange}
                 />
@@ -81,6 +84,7 @@ const NewCard = (props: Props) => {
                 {/* Armor */}
                 <Input
                     placeholder={tCard("armor")}
+                    iconType='armor'
                     defaultValue={armor?.toString() || ""}
                     onChange={onArmorChange}
                 />
@@ -104,6 +108,8 @@ const NewCard = (props: Props) => {
             onCharacterNameChange = () => {},
             onPlayerNameChange = () => {},
             onIsMonsterChange = () => {},
+            showDelete = true,
+            showMonsterToggle = true,
             onHpChange = () => {},
             onArmorChange = () => {},
             onInitiativeChange = () => {},
@@ -175,18 +181,22 @@ const NewCard = (props: Props) => {
                 {/* Body: Monster toggle, HP, Armor, Languages, Remove — moves up into freed space */}
                 <Vt name={`${vtNs}-body`}>
                     <div className="flex flex-col gap-2">
-                        <ToggleInput
-                            label={tCard("monster")}
-                            checked={isMonster}
-                            onChange={onIsMonsterChange}
-                        />
+                        {showMonsterToggle && (
+                            <ToggleInput
+                                label={tCard("monster")}
+                                checked={isMonster}
+                                onChange={onIsMonsterChange}
+                            />
+                        )}
                         <Input
                             placeholder={tCard("hp")}
+                            iconType='hp'
                             defaultValue={hp?.toString() || ""}
                             onChange={onHpChange}
                         />
                         <Input
                             placeholder={tCard("armor")}
+                            iconType='armor'
                             defaultValue={armor?.toString() || ""}
                             onChange={onArmorChange}
                         />
@@ -199,11 +209,13 @@ const NewCard = (props: Props) => {
                                 className="w-full"
                             />
                         )}
-                        <Button
-                            text={tGame("remove")}
-                            variant="tertiary_small"
-                            onClick={onDelete}
-                        />
+                        {showDelete && (
+                            <Button
+                                text={tGame("remove")}
+                                variant="tertiary_small"
+                                onClick={onDelete}
+                            />
+                        )}
                     </div>
                 </Vt>
             </div>

@@ -28,7 +28,8 @@ import {
 } from "@/components/Tabs";
 import { Condition } from "@/data/conditions";
 import { api } from "@/lib/api";
-import { getLastGameId, setLastGameId } from "@/lib/gameStorage";
+import { getLastGameId, setGameIdForCode, setLastGameId } from "@/lib/gameStorage";
+import { setUserId } from "@/lib/userStorage";
 import authenticatedBg from "../images/authenticatedBg.webp";
 import classNames from "classnames";
 import { useLocale, useTranslations } from "next-intl";
@@ -57,6 +58,9 @@ export default function Home() {
   const [games, setGames] = useState<unknown[]>([]);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [draftUserName, setDraftUserName] = useState<string>("");
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const [showCharacterCreation, setShowCharacterCreation] = useState(false);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
@@ -100,6 +104,37 @@ export default function Home() {
     fetchGames();
   }, [status, session?.accessToken, tErrors]);
 
+  useEffect(() => {
+    if (!session) return;
+    const fallbackName =
+      session.user?.name ||
+      session.user?.email?.split("@")[0] ||
+      tHome("friendFallback");
+    setUserName(fallbackName);
+  }, [session, tHome]);
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      if (status !== "authenticated" || !session?.accessToken) return;
+      try {
+        const me = await api.get<{ id?: string; name?: string }>(
+          "/user/me",
+          session.accessToken,
+        );
+        if (me?.id) {
+          setUserId(me.id);
+        }
+        if (me?.name?.trim()) {
+          setUserName(me.name.trim());
+        }
+      } catch (err) {
+        console.error("Failed to fetch user info:", err);
+      }
+    };
+
+    fetchMe();
+  }, [status, session?.accessToken]);
+
   if (status === "loading") {
     return <LoadingScreen />;
   }
@@ -107,11 +142,6 @@ export default function Home() {
   if (!session) {
     return null;
   }
-
-  const userName =
-    session.user?.name ||
-    session.user?.email?.split("@")[0] ||
-    tHome("friendFallback");
 
   const navigateToTab = (newTab: TabType) => {
     const currentIndex = TAB_INDEX[activeTab];
@@ -142,6 +172,7 @@ export default function Home() {
         session.accessToken,
       );
 
+      setGameIdForCode(response.code, response.game_id);
       setLastGameId(response.code);
       router.push(`/${locale}/game/${response.code}`);
     } catch (err) {
@@ -173,19 +204,27 @@ export default function Home() {
     setIsJoiningGame(true);
     setJoinError(null);
     try {
-      const sessions = await api.get<
-        Array<{ id: string; code: string; master_id?: string }>
-      >("/game/all", session?.accessToken);
-      const match = sessions?.find((s) => s.code?.toUpperCase() === trimmed);
-      if (!match) {
-        setJoinError(tErrors("sessionNotFoundDetailed"));
-        return;
+      const joined = await api.post<{
+        game_id?: string;
+        code?: string;
+        role?: string;
+        character_id?: string;
+      }>(
+        "/game/join",
+        { code: trimmed },
+        session?.accessToken,
+      );
+      const resolvedCode = joined?.code?.trim() || trimmed;
+      if (joined?.game_id) {
+        setGameIdForCode(resolvedCode, joined.game_id);
       }
-      setLastGameId(match.code);
-      router.push(`/${locale}/game/${match.code}`);
+      setLastGameId(resolvedCode);
+      router.push(`/${locale}/game/${resolvedCode}`);
     } catch (err) {
       setJoinError(
-        err instanceof Error ? err.message : tErrors("failedToJoin"),
+        err instanceof Error
+          ? err.message || tErrors("sessionNotFoundDetailed")
+          : tErrors("failedToJoin"),
       );
     } finally {
       setIsJoiningGame(false);
@@ -228,7 +267,7 @@ export default function Home() {
           session.accessToken,
         );
         await api.post(
-          `/game/register?game_id=${currentGameId}`,
+          `/game/${currentGameId}/register`,
           { character_id: created.id },
           session.accessToken,
         );
@@ -269,23 +308,52 @@ export default function Home() {
       addTransitionType("settings-open");
       setDraftPreference(profilePreference);
       setDraftLanguage((locale as AppLanguage) ?? "en");
+      setDraftUserName(userName);
       setShowSettings(true);
     });
   };
 
-  const handleCloseSettings = (save: boolean) => {
-    startTransition(() => {
-      addTransitionType("settings-close");
-      if (save && draftPreference) {
-        setProfilePreference(draftPreference);
-        savePreference(draftPreference);
-      }
-      if (save) {
+  const handleCloseSettings = async (save: boolean) => {
+    if (isSavingSettings) return;
+
+    if (save) {
+      if (!session?.accessToken) return;
+
+      setIsSavingSettings(true);
+      try {
+        const trimmedName = draftUserName.trim();
+        if (trimmedName && trimmedName !== userName) {
+          await api.patch(
+            "/user/me/name",
+            { name: trimmedName },
+            session.accessToken,
+          );
+          setUserName(trimmedName);
+        }
+
+        if (draftPreference) {
+          setProfilePreference(draftPreference);
+          savePreference(draftPreference);
+        }
+
         saveLanguage(draftLanguage);
         if (draftLanguage !== locale) {
           router.push(`/${draftLanguage}`);
         }
+      } catch (err) {
+        alert(
+          err instanceof Error
+            ? err.message
+            : tSettings("nameUpdateFailed"),
+        );
+        return;
+      } finally {
+        setIsSavingSettings(false);
       }
+    }
+
+    startTransition(() => {
+      addTransitionType("settings-close");
       setDraftPreference(null);
       setShowSettings(false);
     });
@@ -432,8 +500,10 @@ export default function Home() {
             >
               <SettingsView
                 userName={userName}
+                draftUserName={draftUserName}
                 preference={draftPreference || profilePreference}
                 onPreferenceChange={setDraftPreference}
+                onUserNameChange={setDraftUserName}
                 onChangePassword={handleChangePassword}
                 onSignOut={handleSignOut}
                 selectedLanguage={draftLanguage}

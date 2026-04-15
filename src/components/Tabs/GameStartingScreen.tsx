@@ -4,8 +4,8 @@ import {
     useState,
     useCallback,
     useEffect,
+    useMemo,
     startTransition,
-    ViewTransition,
 } from "react";
 import { useRouter, useParams } from "next/navigation";
 import MainCard from "@/components/Organisms/MainCard";
@@ -29,6 +29,7 @@ import avatarPlaceholder from "@/app/images/elfIconMale.png";
 import { conditions } from "@/data/conditions";
 import type { Character } from "./CharacterCreation";
 import { useLocale, useTranslations } from "next-intl";
+import { getUserId } from "@/lib/userStorage";
 
 // Snapshot shape returned by register API
 export type GameUnit = {
@@ -53,6 +54,13 @@ export type GameSnapshot = {
     units: Record<string, GameUnit>;
     /** Combat / scene rooms from `get_snapshot` (optional). */
     rooms?: RoomEntry[];
+    /** Session members from `get_snapshot` (optional). */
+    members?: Array<{
+        userId: string;
+        nickname: string;
+        role: string;
+        characterIds: string[];
+    }>;
 };
 
 type GameStartingScreenProps = {
@@ -75,9 +83,13 @@ const ALL_CONDITIONS_AS_EFFECTS = conditions.map((c) => ({
     description: c.effects?.join("\n") ?? "",
 }));
 
-const createEmptyCharacter = (): Character => ({
-    id: crypto.randomUUID(),
-    playerName: "",
+type DraftCharacter = Omit<Character, "id"> & {
+    clientId: number;
+};
+
+const createEmptyCharacter = (playerName = ""): DraftCharacter => ({
+    clientId: 0,
+    playerName,
     characterName: "",
     isMonster: false,
     hp: undefined,
@@ -90,6 +102,7 @@ type RawGameUnit = {
     id?: string;
     name?: string;
     is_monster?: boolean;
+    owner_id?: string;
     hp?: number;
     armor?: number;
     initiative?: number;
@@ -100,6 +113,42 @@ type RawGameUnit = {
         description?: string;
     }>;
 };
+
+type RawGameMember = {
+    user_id?: string;
+    nickname?: string;
+    role?: string;
+    character_ids?: string[];
+};
+
+function parseSnapshotMembers(data: {
+    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+}): Array<{
+    userId: string;
+    nickname: string;
+    role: string;
+    characterIds: string[];
+}> {
+    if (!data?.members || typeof data.members !== "object") return [];
+    const membersContainer = data.members as
+        | { items?: Record<string, RawGameMember> }
+        | Record<string, RawGameMember>;
+    const membersMap =
+        "items" in membersContainer &&
+        membersContainer.items &&
+        typeof membersContainer.items === "object"
+            ? membersContainer.items
+            : (membersContainer as Record<string, RawGameMember>);
+
+    return Object.values(membersMap)
+        .filter((member) => typeof member.user_id === "string" && member.user_id.length > 0)
+        .map((member) => ({
+            userId: member.user_id as string,
+            nickname: member.nickname ?? "",
+            role: member.role ?? "",
+            characterIds: Array.isArray(member.character_ids) ? member.character_ids : [],
+        }));
+}
 
 function parseSnapshotUnits(data: {
     units?: Record<string, RawGameUnit>;
@@ -112,6 +161,7 @@ function parseSnapshotUnits(data: {
                 id: u.id ?? key,
                 name: u.name ?? "",
                 is_monster: u.is_monster ?? false,
+                owner_id: u.owner_id,
                 hp: u.hp ?? 0,
                 armor: u.armor ?? 0,
                 initiative: u.initiative ?? 0,
@@ -126,20 +176,48 @@ function parseSnapshotUnits(data: {
     );
 }
 
+function parseSnapshotPayload(data: {
+    units?: Record<string, RawGameUnit>;
+    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+}): {
+    units: Record<string, GameUnit>;
+    members: Array<{
+        userId: string;
+        nickname: string;
+        role: string;
+        characterIds: string[];
+    }>;
+} {
+    return {
+        units: parseSnapshotUnits(data),
+        members: parseSnapshotMembers(data),
+    };
+}
+
 export default function GameStartingScreen({
     snapshot,
     gameId,
     token,
 }: GameStartingScreenProps) {
+    const initialCurrentUserId = getUserId();
+    const initialMember = (snapshot.members ?? []).find(
+        (member) => member.userId === initialCurrentUserId,
+    );
+    const initialDraftPlayerName =
+        initialMember?.role === "player" ? initialMember.nickname ?? "" : "";
+
     const [units, setUnits] = useState<Record<string, GameUnit>>(
         () => snapshot.units || {},
     );
-    const [newCharacters, setNewCharacters] = useState<Character[]>(() => {
+    const [members, setMembers] = useState<GameSnapshot["members"]>(
+        () => snapshot.members ?? [],
+    );
+    const [newCharacters, setNewCharacters] = useState<DraftCharacter[]>(() => {
         const hasExistingUnits =
             snapshot.units && Object.keys(snapshot.units).length > 0;
-        return hasExistingUnits ? [] : [createEmptyCharacter()];
+        return hasExistingUnits ? [] : [createEmptyCharacter(initialDraftPlayerName)];
     });
-    const [addingCharacterId, setAddingCharacterId] = useState<string | null>(
+    const [addingCharacterId, setAddingCharacterId] = useState<number | null>(
         null,
     );
     const [monsterFinderOpen, setMonsterFinderOpen] = useState(false);
@@ -161,6 +239,57 @@ export default function GameStartingScreen({
     const locale = useLocale();
     const tGame = useTranslations("game");
     const tCard = useTranslations("card");
+    const currentUserId = useMemo(() => getUserId(), []);
+    const currentMember = useMemo(
+        () =>
+            (members ?? []).find(
+                (member) => member.userId === currentUserId,
+            ),
+        [currentUserId, members],
+    );
+    const memberNicknameByUserId = useMemo(
+        () =>
+            Object.fromEntries(
+                (members ?? []).map((member) => [
+                    member.userId,
+                    member.nickname,
+                ]),
+            ) as Record<string, string>,
+        [members],
+    );
+    const memberNicknameByCharacterId = useMemo(() => {
+        const entries = (members ?? []).flatMap((member) =>
+            (member.characterIds ?? []).map((characterId) => [
+                characterId,
+                member.nickname,
+            ] as const),
+        );
+        return Object.fromEntries(entries) as Record<string, string>;
+    }, [members]);
+    const isMaster = currentMember?.role === "master";
+    const isPlayer = currentMember?.role === "player";
+    const playerNickname = currentMember?.nickname ?? "";
+    const currentMemberCharacterIds = useMemo(
+        () => new Set(currentMember?.characterIds ?? []),
+        [currentMember?.characterIds],
+    );
+    const canEditUnitStats = useCallback(
+        (unit: GameUnit) =>
+            isMaster ||
+            currentMemberCharacterIds.has(unit.id) ||
+            (!!currentUserId && unit.owner_id === currentUserId),
+        [currentMemberCharacterIds, currentUserId, isMaster],
+    );
+    const canViewUnitStats = useCallback(
+        (unit: GameUnit) =>
+            isMaster ||
+            currentMemberCharacterIds.has(unit.id) ||
+            (!!currentUserId && unit.owner_id === currentUserId),
+        [currentMemberCharacterIds, currentUserId, isMaster],
+    );
+    const canPlayerCreateCharacter =
+        (currentMember?.characterIds?.length ?? 0) < 1;
+    const canShowAddCharacterButton = isMaster || canPlayerCreateCharacter;
 
     const updateUnit = useCallback((id: string, updates: Partial<GameUnit>) => {
         setUnits((prev) => {
@@ -218,6 +347,36 @@ export default function GameStartingScreen({
         [gameId, token, updateUnit],
     );
 
+    const removeUnit = useCallback(
+        async (unitId: string) => {
+            try {
+                await api.delete(`/game/${gameId}/units/${unitId}`, token);
+                setUnits((prev) => {
+                    const next = { ...prev };
+                    delete next[unitId];
+                    return next;
+                });
+                if (currentUserId) {
+                    setMembers((prev) =>
+                        (prev ?? []).map((member) =>
+                            member.userId === currentUserId
+                                ? {
+                                      ...member,
+                                      characterIds: (member.characterIds ?? []).filter(
+                                          (id) => id !== unitId,
+                                      ),
+                                  }
+                                : member,
+                        ),
+                    );
+                }
+            } catch (err) {
+                console.error("Remove unit failed:", err);
+            }
+        },
+        [currentUserId, gameId, token],
+    );
+
     const addEffect = useCallback(
         async (unitId: string, conditionId: string) => {
             const condition = conditions.find((c) => c.id === conditionId);
@@ -227,7 +386,7 @@ export default function GameStartingScreen({
                     snapshot?: { units?: Record<string, RawGameUnit> };
                     data?: { units?: Record<string, RawGameUnit> };
                 }>(
-                    `/game/${gameId}/units/${unitId}/effects`,
+                    `/game/${gameId}/units/effects`,
                     {
                         unit_id: unitId,
                         template_key: condition.id,
@@ -248,10 +407,9 @@ export default function GameStartingScreen({
                     token,
                 );
 
-                const parsedUnits = parseSnapshotUnits(
-                    res.snapshot ?? res.data ?? {},
-                );
-                setUnits(parsedUnits);
+                const parsed = parseSnapshotPayload(res.snapshot ?? res.data ?? {});
+                setUnits(parsed.units);
+                if (parsed.members.length > 0) setMembers(parsed.members);
             } catch (err) {
                 console.error("Add effect failed:", err);
             }
@@ -270,17 +428,20 @@ export default function GameStartingScreen({
             if (!effectInstanceId) return;
 
             try {
-                const res = await api.delete<{
+                const res = await api.deleteWithBody<{
                     snapshot?: { units?: Record<string, RawGameUnit> };
                     data?: { units?: Record<string, RawGameUnit> };
                 }>(
-                    `/game/${gameId}/units/${unitId}/effects/${effectInstanceId}`,
+                    `/game/${gameId}/units/effects/${effectInstanceId}`,
+                    {
+                        unit_id: unitId,
+                        effect_id: effectInstanceId,
+                    },
                     token,
                 );
-                const parsedUnits = parseSnapshotUnits(
-                    res.snapshot ?? res.data ?? {},
-                );
-                setUnits(parsedUnits);
+                const parsed = parseSnapshotPayload(res.snapshot ?? res.data ?? {});
+                setUnits(parsed.units);
+                if (parsed.members.length > 0) setMembers(parsed.members);
             } catch (err) {
                 console.error("Remove effect failed:", err);
             }
@@ -303,25 +464,38 @@ export default function GameStartingScreen({
     );
 
     const updateNewCharacter = useCallback(
-        (id: string, updates: Partial<Character>) => {
+        (clientId: number, updates: Partial<DraftCharacter>) => {
             setNewCharacters((prev) =>
-                prev.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+                prev.map((c) =>
+                    c.clientId === clientId ? { ...c, ...updates } : c,
+                ),
             );
         },
         [],
     );
 
-    const deleteNewCharacter = useCallback((id: string) => {
-        startTransition(() => {
-            setNewCharacters((prev) => prev.filter((c) => c.id !== id));
-        });
+    const deleteNewCharacter = useCallback((clientId: number) => {
+        setNewCharacters((prev) => prev.filter((c) => c.clientId !== clientId));
     }, []);
 
     const addNewCharacter = useCallback(() => {
-        startTransition(() => {
-            setNewCharacters((prev) => [...prev, createEmptyCharacter()]);
-        });
-    }, []);
+        if (!canShowAddCharacterButton) return;
+        setNewCharacters((prev) => [
+            ...prev,
+            createEmptyCharacter(isPlayer ? playerNickname : ""),
+        ]);
+    }, [canShowAddCharacterButton, isPlayer, playerNickname]);
+
+    useEffect(() => {
+        if (!isPlayer || !playerNickname) return;
+        setNewCharacters((prev) =>
+            prev.map((character) =>
+                character.playerName.trim()
+                    ? character
+                    : { ...character, playerName: playerNickname },
+            ),
+        );
+    }, [isPlayer, playerNickname]);
 
     // Load catalog when panel opens. Do NOT put `monsterCatalogLoading` in deps — when it flips
     // to true the effect re-runs, cleanup runs with cancelled=true, and loading never clears.
@@ -385,16 +559,20 @@ export default function GameStartingScreen({
                     token,
                 );
                 await api.post(
-                    `/game/register?game_id=${gameId}`,
+                    `/game/${gameId}/register`,
                     { character_id: created.id },
                     token,
                 );
                 const snapshotRes = await api.post<{
-                    data?: { units?: Record<string, RawGameUnit> };
+                    data?: {
+                        units?: Record<string, RawGameUnit>;
+                        members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                    };
                 }>(`/game/${gameId}/get_snapshot`, {}, token);
-                const freshUnits = parseSnapshotUnits(snapshotRes?.data ?? {});
+                const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
                 startTransition(() => {
-                    setUnits(freshUnits);
+                    setUnits(parsed.units);
+                    if (parsed.members.length > 0) setMembers(parsed.members);
                 });
             } catch (err) {
                 console.error("Add monster failed:", err);
@@ -411,10 +589,10 @@ export default function GameStartingScreen({
     );
 
     const handleAddToFight = useCallback(
-        async (character: Character) => {
+        async (character: DraftCharacter) => {
             if (character.characterName.trim() === "") return;
 
-            setAddingCharacterId(character.id);
+            setAddingCharacterId(character.clientId);
             try {
                 const created = await api.post<{ id: string }>(
                     "/character/create",
@@ -423,7 +601,9 @@ export default function GameStartingScreen({
                         initiative: character.initiative ?? 0,
                         armor: character.armor ?? 0,
                         hp: character.hp ?? 0,
-                        is_monster: character.isMonster ?? false,
+                        is_monster: isMaster
+                            ? character.isMonster ?? false
+                            : false,
                         languages: character.languages ?? [],
                         passive_perception: 10,
                         passive_investigation: 10,
@@ -432,18 +612,22 @@ export default function GameStartingScreen({
                     token,
                 );
                 await api.post(
-                    `/game/register?game_id=${gameId}`,
+                    `/game/${gameId}/register`,
                     { character_id: created.id },
                     token,
                 );
                 const snapshotRes = await api.post<{
-                    data?: { units?: Record<string, RawGameUnit> };
+                    data?: {
+                        units?: Record<string, RawGameUnit>;
+                        members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                    };
                 }>(`/game/${gameId}/get_snapshot`, {}, token);
-                const freshUnits = parseSnapshotUnits(snapshotRes?.data ?? {});
+                const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
                 startTransition(() => {
-                    setUnits(freshUnits);
+                    setUnits(parsed.units);
+                    if (parsed.members.length > 0) setMembers(parsed.members);
                     setNewCharacters((prev) =>
-                        prev.filter((c) => c.id !== character.id),
+                        prev.filter((c) => c.clientId !== character.clientId),
                     );
                 });
             } catch (err) {
@@ -457,7 +641,7 @@ export default function GameStartingScreen({
                 setAddingCharacterId(null);
             }
         },
-        [gameId, token],
+        [gameId, isMaster, token],
     );
 
     const handleStartFight = useCallback(async () => {
@@ -494,9 +678,13 @@ export default function GameStartingScreen({
 
             // 2) Refresh snapshot and add every unit as participant
             const snapshotRes = await api.post<{
-                data?: { units?: Record<string, RawGameUnit> };
+                data?: {
+                    units?: Record<string, RawGameUnit>;
+                    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                };
             }>(`/game/${gameId}/get_snapshot`, {}, token);
-            const latestUnits = parseSnapshotUnits(snapshotRes?.data ?? {});
+            const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
+            const latestUnits = parsed.units;
             const unitIds = Object.keys(latestUnits);
 
             for (const unitId of unitIds) {
@@ -542,122 +730,166 @@ export default function GameStartingScreen({
         <div className='w-full h-full flex flex-col pt-4 pb-8 overflow-y-auto'>
             <div className='flex flex-col gap-4 px-4 items-center'>
                 {unitList.map((unit) => (
-                    <ViewTransition key={unit.id} name={`unit-${unit.id}`}>
-                        <MainCard
-                            key={unit.id}
-                            type={unit.is_monster ? "NPC" : "player"}
-                            isActive={true}
-                            showInitiative={true}
-                            characterName={unit.name}
-                            playerName={tCard("playerName")}
-                            name={unit.name}
-                            avatarSrc={avatarSrc || undefined}
-                            hp={unit.hp}
-                            armor={unit.armor}
-                            initiative={unit.initiative}
-                            allEffects={ALL_CONDITIONS_AS_EFFECTS}
-                            effects={(unit.effects ?? []).map((e) => ({
-                                id: e.id,
-                                name: e.name,
-                                description: e.description,
-                            }))}
-                            onEffectToggle={(effectId) =>
-                                handleEffectToggle(unit.id, effectId)
-                            }
-                            isConcentrated={false}
-                            onConcentrationChange={() => {}}
-                            onHpChange={(value) => setHp(unit.id, value)}
-                            onArmorChange={(value) => setArmor(unit.id, value)}
-                            onInitiativeChange={(value) =>
-                                setInitiative(unit.id, value)
-                            }
-                        />
-                    </ViewTransition>
+                    // Player sees non-owned units as initiative-only cards.
+                    // Master keeps full card details and controls.
+                    <MainCard
+                        key={unit.id}
+                        type={unit.is_monster ? "NPC" : "player"}
+                        isActive={isPlayer && !canViewUnitStats(unit) ? false : true}
+                        initiativeOnly={isPlayer && !canViewUnitStats(unit)}
+                        showInitiative={true}
+                        characterName={unit.name}
+                        playerName={
+                            memberNicknameByCharacterId[unit.id] ||
+                            (unit.owner_id
+                                ? memberNicknameByUserId[unit.owner_id]
+                                : "") || tCard("playerName")
+                        }
+                        name={unit.name}
+                        avatarSrc={avatarSrc || undefined}
+                        hp={canViewUnitStats(unit) ? unit.hp : undefined}
+                        armor={canViewUnitStats(unit) ? unit.armor : undefined}
+                        initiative={unit.initiative}
+                        allEffects={
+                            isPlayer && !canViewUnitStats(unit)
+                                ? []
+                                : ALL_CONDITIONS_AS_EFFECTS
+                        }
+                        effects={
+                            isPlayer && !canViewUnitStats(unit)
+                                ? []
+                                : (unit.effects ?? []).map((e) => ({
+                                      id: e.id,
+                                      name: e.name,
+                                      description: e.description,
+                                  }))
+                        }
+                        onEffectToggle={
+                            isMaster
+                                ? (effectId) =>
+                                      handleEffectToggle(unit.id, effectId)
+                                : () => {}
+                        }
+                        isConcentrated={false}
+                        onConcentrationChange={() => {}}
+                        onHpChange={
+                            canEditUnitStats(unit)
+                                ? (value) => setHp(unit.id, value)
+                                : undefined
+                        }
+                        onArmorChange={
+                            canEditUnitStats(unit)
+                                ? (value) => setArmor(unit.id, value)
+                                : undefined
+                        }
+                        onInitiativeChange={
+                            canEditUnitStats(unit)
+                                ? (value) => setInitiative(unit.id, value)
+                                : undefined
+                        }
+                        onRemove={canEditUnitStats(unit) ? () => removeUnit(unit.id) : undefined}
+                        removeLabel={tGame("remove")}
+                    />
                 ))}
 
                 {newCharacters.map((character) => (
-                    <NewCard
-                        key={character.id}
-                        type='player'
-                        enableViewTransition={false}
-                        cardId={character.id}
-                        avatarSrc={character.avatarSrc}
-                        playerName={character.playerName}
-                        characterName={character.characterName}
-                        isMonster={character.isMonster}
-                        hp={character.hp}
-                        armor={character.armor}
-                        initiative={character.initiative}
-                        onPlayerNameChange={(e) =>
-                            updateNewCharacter(character.id, {
-                                playerName: e.target.value,
-                            })
-                        }
-                        onCharacterNameChange={(e) =>
-                            updateNewCharacter(character.id, {
-                                characterName: e.target.value,
-                            })
-                        }
-                        onIsMonsterChange={(checked) => {
-                            startTransition(() =>
-                                updateNewCharacter(character.id, {
-                                    isMonster: checked,
-                                }),
-                            );
-                        }}
-                        onHpChange={(e) =>
-                            updateNewCharacter(character.id, {
-                                hp: e.target.value
-                                    ? parseInt(e.target.value, 10)
-                                    : undefined,
-                            })
-                        }
-                        onArmorChange={(e) =>
-                            updateNewCharacter(character.id, {
-                                armor: e.target.value
-                                    ? parseInt(e.target.value, 10)
-                                    : undefined,
-                            })
-                        }
-                        onInitiativeChange={(value: number) =>
-                            updateNewCharacter(character.id, {
-                                initiative: value,
-                            })
-                        }
-                        onAddToFight={() => handleAddToFight(character)}
-                        canAddToFight={character.characterName.trim() !== ""}
-                        isAddingToFight={addingCharacterId === character.id}
-                        onDelete={() => deleteNewCharacter(character.id)}
-                    />
+                    <div key={character.clientId} className='w-full'>
+                        <NewCard
+                            type='player'
+                            enableViewTransition={false}
+                            cardId={String(character.clientId)}
+                            avatarSrc={character.avatarSrc}
+                            playerName={character.playerName}
+                            characterName={character.characterName}
+                            isMonster={character.isMonster}
+                            showMonsterToggle={isMaster}
+                            hp={character.hp}
+                            armor={character.armor}
+                            initiative={character.initiative}
+                            onPlayerNameChange={(e) =>
+                                updateNewCharacter(character.clientId, {
+                                    playerName: e.target.value,
+                                })
+                            }
+                            onCharacterNameChange={(e) =>
+                                updateNewCharacter(character.clientId, {
+                                    characterName: e.target.value,
+                                })
+                            }
+                            onIsMonsterChange={
+                                isMaster
+                                    ? (checked) => {
+                                          startTransition(() =>
+                                              updateNewCharacter(
+                                                  character.clientId,
+                                                  {
+                                                      isMonster: checked,
+                                                  },
+                                              ),
+                                          );
+                                      }
+                                    : undefined
+                            }
+                            onHpChange={(e) =>
+                                updateNewCharacter(character.clientId, {
+                                    hp: e.target.value
+                                        ? parseInt(e.target.value, 10)
+                                        : undefined,
+                                })
+                            }
+                            onArmorChange={(e) =>
+                                updateNewCharacter(character.clientId, {
+                                    armor: e.target.value
+                                        ? parseInt(e.target.value, 10)
+                                        : undefined,
+                                })
+                            }
+                            onInitiativeChange={(value: number) =>
+                                updateNewCharacter(character.clientId, {
+                                    initiative: value,
+                                })
+                            }
+                            onAddToFight={() => handleAddToFight(character)}
+                            canAddToFight={character.characterName.trim() !== ""}
+                            isAddingToFight={
+                                addingCharacterId === character.clientId
+                            }
+                            onDelete={() => deleteNewCharacter(character.clientId)}
+                        />
+                    </div>
                 ))}
 
-                <MonsterFinderPanel
-                    findMonsterLabel={tGame("findMonster")}
-                    searchPlaceholder={tGame("searchMonstersPlaceholder")}
-                    loadingLabel={tGame("monsterLoading")}
-                    loadError={monsterCatalogError}
-                    retryLabel={tGame("monsterRetry")}
-                    noMatchesLabel={tGame("noMonsterMatches")}
-                    closeLabel={tGame("closeMonsterFinder")}
-                    catalog={monsterCatalog}
-                    catalogLoading={monsterCatalogLoading}
-                    search={monsterSearch}
-                    onSearchChange={setMonsterSearch}
-                    onRetryCatalog={() => setMonsterCatalogError(null)}
-                    onAddByIndex={handleAddMonsterFromApi}
-                    addingIndex={addingMonsterIndex}
-                    onOpenChange={setMonsterFinderOpen}
-                    compactTrigger
-                />
-
-                <div className='w-full'>
-                    <Button
-                        text={tGame("addMore")}
-                        variant='secondary'
-                        onClick={addNewCharacter}
-                        className='w-full'
+                {isMaster && (
+                    <MonsterFinderPanel
+                        findMonsterLabel={tGame("findMonster")}
+                        searchPlaceholder={tGame("searchMonstersPlaceholder")}
+                        loadingLabel={tGame("monsterLoading")}
+                        loadError={monsterCatalogError}
+                        retryLabel={tGame("monsterRetry")}
+                        noMatchesLabel={tGame("noMonsterMatches")}
+                        closeLabel={tGame("closeMonsterFinder")}
+                        catalog={monsterCatalog}
+                        catalogLoading={monsterCatalogLoading}
+                        search={monsterSearch}
+                        onSearchChange={setMonsterSearch}
+                        onRetryCatalog={() => setMonsterCatalogError(null)}
+                        onAddByIndex={handleAddMonsterFromApi}
+                        addingIndex={addingMonsterIndex}
+                        onOpenChange={setMonsterFinderOpen}
+                        compactTrigger
                     />
-                </div>
+                )}
+
+                {canShowAddCharacterButton && (
+                    <div className='w-full'>
+                        <Button
+                            text={tGame("addMore")}
+                            variant='secondary'
+                            onClick={addNewCharacter}
+                            className='w-full'
+                        />
+                    </div>
+                )}
 
                 {/* Fight scene name & Start a fight */}
                 <div className='w-full mt-6 pt-6 border-t border-find-the-path flex flex-col gap-3'>
@@ -672,23 +904,27 @@ export default function GameStartingScreen({
                             />
                         </div>
                     )}
-                    <Input
-                        placeholder={tGame("fightName")}
-                        defaultValue={fightSceneName}
-                        onChange={(e) => setFightSceneName(e.target.value)}
-                        className='w-full'
-                    />
-                    <Button
-                        text={
-                            isStartingFight
-                                ? tGame("startingFight")
-                                : tGame("startFight")
-                        }
-                        variant='primary'
-                        onClick={handleStartFight}
-                        isDisabled={isStartingFight || unitList.length === 0}
-                        className='w-full'
-                    />
+                    {isMaster && (
+                        <>
+                            <Input
+                                placeholder={tGame("fightName")}
+                                defaultValue={fightSceneName}
+                                onChange={(e) => setFightSceneName(e.target.value)}
+                                className='w-full'
+                            />
+                            <Button
+                                text={
+                                    isStartingFight
+                                        ? tGame("startingFight")
+                                        : tGame("startFight")
+                                }
+                                variant='primary'
+                                onClick={handleStartFight}
+                                isDisabled={isStartingFight || unitList.length === 0}
+                                className='w-full'
+                            />
+                        </>
+                    )}
                 </div>
             </div>
         </div>
