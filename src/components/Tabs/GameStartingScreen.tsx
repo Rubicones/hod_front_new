@@ -2,12 +2,14 @@
 
 import {
     useState,
+    useRef,
     useCallback,
     useEffect,
     useMemo,
     startTransition,
 } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { AnimatePresence, motion } from "motion/react";
 import MainCard from "@/components/Organisms/MainCard";
 import NewCard from "@/components/Organisms/NewCard";
 import MonsterFinderPanel from "@/components/Molecules/MonsterFinderPanel";
@@ -87,8 +89,11 @@ type DraftCharacter = Omit<Character, "id"> & {
     clientId: number;
 };
 
-const createEmptyCharacter = (playerName = ""): DraftCharacter => ({
-    clientId: 0,
+const createEmptyCharacter = (
+    clientId: number,
+    playerName = "",
+): DraftCharacter => ({
+    clientId,
     playerName,
     characterName: "",
     isMonster: false,
@@ -122,7 +127,9 @@ type RawGameMember = {
 };
 
 function parseSnapshotMembers(data: {
-    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+    members?:
+        | { items?: Record<string, RawGameMember> }
+        | Record<string, RawGameMember>;
 }): Array<{
     userId: string;
     nickname: string;
@@ -141,12 +148,17 @@ function parseSnapshotMembers(data: {
             : (membersContainer as Record<string, RawGameMember>);
 
     return Object.values(membersMap)
-        .filter((member) => typeof member.user_id === "string" && member.user_id.length > 0)
+        .filter(
+            (member) =>
+                typeof member.user_id === "string" && member.user_id.length > 0,
+        )
         .map((member) => ({
             userId: member.user_id as string,
             nickname: member.nickname ?? "",
             role: member.role ?? "",
-            characterIds: Array.isArray(member.character_ids) ? member.character_ids : [],
+            characterIds: Array.isArray(member.character_ids)
+                ? member.character_ids
+                : [],
         }));
 }
 
@@ -178,7 +190,9 @@ function parseSnapshotUnits(data: {
 
 function parseSnapshotPayload(data: {
     units?: Record<string, RawGameUnit>;
-    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+    members?:
+        | { items?: Record<string, RawGameMember> }
+        | Record<string, RawGameMember>;
 }): {
     units: Record<string, GameUnit>;
     members: Array<{
@@ -204,7 +218,7 @@ export default function GameStartingScreen({
         (member) => member.userId === initialCurrentUserId,
     );
     const initialDraftPlayerName =
-        initialMember?.role === "player" ? initialMember.nickname ?? "" : "";
+        initialMember?.role === "player" ? (initialMember.nickname ?? "") : "";
 
     const [units, setUnits] = useState<Record<string, GameUnit>>(
         () => snapshot.units || {},
@@ -215,8 +229,11 @@ export default function GameStartingScreen({
     const [newCharacters, setNewCharacters] = useState<DraftCharacter[]>(() => {
         const hasExistingUnits =
             snapshot.units && Object.keys(snapshot.units).length > 0;
-        return hasExistingUnits ? [] : [createEmptyCharacter(initialDraftPlayerName)];
+        return hasExistingUnits
+            ? []
+            : [createEmptyCharacter(1, initialDraftPlayerName)];
     });
+    const nextDraftIdRef = useRef(2);
     const [addingCharacterId, setAddingCharacterId] = useState<number | null>(
         null,
     );
@@ -241,10 +258,7 @@ export default function GameStartingScreen({
     const tCard = useTranslations("card");
     const currentUserId = useMemo(() => getUserId(), []);
     const currentMember = useMemo(
-        () =>
-            (members ?? []).find(
-                (member) => member.userId === currentUserId,
-            ),
+        () => (members ?? []).find((member) => member.userId === currentUserId),
         [currentUserId, members],
     );
     const memberNicknameByUserId = useMemo(
@@ -259,10 +273,9 @@ export default function GameStartingScreen({
     );
     const memberNicknameByCharacterId = useMemo(() => {
         const entries = (members ?? []).flatMap((member) =>
-            (member.characterIds ?? []).map((characterId) => [
-                characterId,
-                member.nickname,
-            ] as const),
+            (member.characterIds ?? []).map(
+                (characterId) => [characterId, member.nickname] as const,
+            ),
         );
         return Object.fromEntries(entries) as Record<string, string>;
     }, [members]);
@@ -362,9 +375,9 @@ export default function GameStartingScreen({
                             member.userId === currentUserId
                                 ? {
                                       ...member,
-                                      characterIds: (member.characterIds ?? []).filter(
-                                          (id) => id !== unitId,
-                                      ),
+                                      characterIds: (
+                                          member.characterIds ?? []
+                                      ).filter((id) => id !== unitId),
                                   }
                                 : member,
                         ),
@@ -407,7 +420,9 @@ export default function GameStartingScreen({
                     token,
                 );
 
-                const parsed = parseSnapshotPayload(res.snapshot ?? res.data ?? {});
+                const parsed = parseSnapshotPayload(
+                    res.snapshot ?? res.data ?? {},
+                );
                 setUnits(parsed.units);
                 if (parsed.members.length > 0) setMembers(parsed.members);
             } catch (err) {
@@ -439,7 +454,9 @@ export default function GameStartingScreen({
                     },
                     token,
                 );
-                const parsed = parseSnapshotPayload(res.snapshot ?? res.data ?? {});
+                const parsed = parseSnapshotPayload(
+                    res.snapshot ?? res.data ?? {},
+                );
                 setUnits(parsed.units);
                 if (parsed.members.length > 0) setMembers(parsed.members);
             } catch (err) {
@@ -480,9 +497,10 @@ export default function GameStartingScreen({
 
     const addNewCharacter = useCallback(() => {
         if (!canShowAddCharacterButton) return;
+        const draftId = nextDraftIdRef.current++;
         setNewCharacters((prev) => [
             ...prev,
-            createEmptyCharacter(isPlayer ? playerNickname : ""),
+            createEmptyCharacter(draftId, isPlayer ? playerNickname : ""),
         ]);
     }, [canShowAddCharacterButton, isPlayer, playerNickname]);
 
@@ -566,7 +584,9 @@ export default function GameStartingScreen({
                 const snapshotRes = await api.post<{
                     data?: {
                         units?: Record<string, RawGameUnit>;
-                        members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                        members?:
+                            | { items?: Record<string, RawGameMember> }
+                            | Record<string, RawGameMember>;
                     };
                 }>(`/game/${gameId}/get_snapshot`, {}, token);
                 const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
@@ -602,7 +622,7 @@ export default function GameStartingScreen({
                         armor: character.armor ?? 0,
                         hp: character.hp ?? 0,
                         is_monster: isMaster
-                            ? character.isMonster ?? false
+                            ? (character.isMonster ?? false)
                             : false,
                         languages: character.languages ?? [],
                         passive_perception: 10,
@@ -619,7 +639,9 @@ export default function GameStartingScreen({
                 const snapshotRes = await api.post<{
                     data?: {
                         units?: Record<string, RawGameUnit>;
-                        members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                        members?:
+                            | { items?: Record<string, RawGameMember> }
+                            | Record<string, RawGameMember>;
                     };
                 }>(`/game/${gameId}/get_snapshot`, {}, token);
                 const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
@@ -680,7 +702,9 @@ export default function GameStartingScreen({
             const snapshotRes = await api.post<{
                 data?: {
                     units?: Record<string, RawGameUnit>;
-                    members?: { items?: Record<string, RawGameMember> } | Record<string, RawGameMember>;
+                    members?:
+                        | { items?: Record<string, RawGameMember> }
+                        | Record<string, RawGameMember>;
                 };
             }>(`/game/${gameId}/get_snapshot`, {}, token);
             const parsed = parseSnapshotPayload(snapshotRes?.data ?? {});
@@ -729,135 +753,173 @@ export default function GameStartingScreen({
     return (
         <div className='w-full h-full flex flex-col pt-4 pb-8 overflow-y-auto'>
             <div className='flex flex-col gap-4 px-4 items-center'>
-                {unitList.map((unit) => (
-                    // Player sees non-owned units as initiative-only cards.
-                    // Master keeps full card details and controls.
-                    <MainCard
-                        key={unit.id}
-                        type={unit.is_monster ? "NPC" : "player"}
-                        isActive={isPlayer && !canViewUnitStats(unit) ? false : true}
-                        initiativeOnly={isPlayer && !canViewUnitStats(unit)}
-                        showInitiative={true}
-                        characterName={unit.name}
-                        playerName={
-                            memberNicknameByCharacterId[unit.id] ||
-                            (unit.owner_id
-                                ? memberNicknameByUserId[unit.owner_id]
-                                : "") || tCard("playerName")
-                        }
-                        name={unit.name}
-                        avatarSrc={avatarSrc || undefined}
-                        hp={canViewUnitStats(unit) ? unit.hp : undefined}
-                        armor={canViewUnitStats(unit) ? unit.armor : undefined}
-                        initiative={unit.initiative}
-                        allEffects={
-                            isPlayer && !canViewUnitStats(unit)
-                                ? []
-                                : ALL_CONDITIONS_AS_EFFECTS
-                        }
-                        effects={
-                            isPlayer && !canViewUnitStats(unit)
-                                ? []
-                                : (unit.effects ?? []).map((e) => ({
-                                      id: e.id,
-                                      name: e.name,
-                                      description: e.description,
-                                  }))
-                        }
-                        onEffectToggle={
-                            isMaster
-                                ? (effectId) =>
-                                      handleEffectToggle(unit.id, effectId)
-                                : () => {}
-                        }
-                        isConcentrated={false}
-                        onConcentrationChange={() => {}}
-                        onHpChange={
-                            canEditUnitStats(unit)
-                                ? (value) => setHp(unit.id, value)
-                                : undefined
-                        }
-                        onArmorChange={
-                            canEditUnitStats(unit)
-                                ? (value) => setArmor(unit.id, value)
-                                : undefined
-                        }
-                        onInitiativeChange={
-                            canEditUnitStats(unit)
-                                ? (value) => setInitiative(unit.id, value)
-                                : undefined
-                        }
-                        onRemove={canEditUnitStats(unit) ? () => removeUnit(unit.id) : undefined}
-                        removeLabel={tGame("remove")}
-                    />
-                ))}
+                <AnimatePresence initial={false} mode='sync'>
+                    {unitList.map((unit) => (
+                        <motion.div
+                            key={unit.id}
+                            layout
+                            className='w-full'
+                            style={{ overflow: "hidden" }}
+                            initial={{ opacity: 0, y: 10, scale: 0.98, height: 0 }}
+                            animate={{ opacity: 1, y: 0, scale: 1, height: "auto" }}
+                            exit={{ opacity: 0, y: -10, scale: 0.98, height: 0 }}
+                            transition={{
+                                duration: 0.16,
+                                ease: "linear",
+                                layout: { duration: 0.16, ease: "linear" },
+                            }}
+                        >
+                            {/* Player sees non-owned units as initiative-only cards.
+                            Master keeps full card details and controls. */}
+                            <MainCard
+                                type={unit.is_monster ? "NPC" : "player"}
+                                isActive={
+                                    isPlayer && !canViewUnitStats(unit) ? false : true
+                                }
+                                initiativeOnly={isPlayer && !canViewUnitStats(unit)}
+                                showInitiative={true}
+                                characterName={unit.name}
+                                playerName={
+                                    memberNicknameByCharacterId[unit.id] ||
+                                    (unit.owner_id
+                                        ? memberNicknameByUserId[unit.owner_id]
+                                        : "") ||
+                                    tCard("playerName")
+                                }
+                                name={unit.name}
+                                avatarSrc={avatarSrc || undefined}
+                                hp={canViewUnitStats(unit) ? unit.hp : undefined}
+                                armor={canViewUnitStats(unit) ? unit.armor : undefined}
+                                initiative={unit.initiative}
+                                allEffects={
+                                    isPlayer && !canViewUnitStats(unit)
+                                        ? []
+                                        : ALL_CONDITIONS_AS_EFFECTS
+                                }
+                                effects={
+                                    isPlayer && !canViewUnitStats(unit)
+                                        ? []
+                                        : (unit.effects ?? []).map((e) => ({
+                                              id: e.id,
+                                              name: e.name,
+                                              description: e.description,
+                                          }))
+                                }
+                                onEffectToggle={
+                                    isMaster
+                                        ? (effectId) =>
+                                              handleEffectToggle(unit.id, effectId)
+                                        : () => {}
+                                }
+                                isConcentrated={false}
+                                onConcentrationChange={() => {}}
+                                onHpChange={
+                                    canEditUnitStats(unit)
+                                        ? (value) => setHp(unit.id, value)
+                                        : undefined
+                                }
+                                onArmorChange={
+                                    canEditUnitStats(unit)
+                                        ? (value) => setArmor(unit.id, value)
+                                        : undefined
+                                }
+                                onInitiativeChange={
+                                    canEditUnitStats(unit)
+                                        ? (value) => setInitiative(unit.id, value)
+                                        : undefined
+                                }
+                                onRemove={
+                                    canEditUnitStats(unit)
+                                        ? () => removeUnit(unit.id)
+                                        : undefined
+                                }
+                                removeLabel={tGame("remove")}
+                            />
+                        </motion.div>
+                    ))}
 
-                {newCharacters.map((character) => (
-                    <div key={character.clientId} className='w-full'>
-                        <NewCard
-                            type='player'
-                            enableViewTransition={false}
-                            cardId={String(character.clientId)}
-                            avatarSrc={character.avatarSrc}
-                            playerName={character.playerName}
-                            characterName={character.characterName}
-                            isMonster={character.isMonster}
-                            showMonsterToggle={isMaster}
-                            hp={character.hp}
-                            armor={character.armor}
-                            initiative={character.initiative}
-                            onPlayerNameChange={(e) =>
-                                updateNewCharacter(character.clientId, {
-                                    playerName: e.target.value,
-                                })
-                            }
-                            onCharacterNameChange={(e) =>
-                                updateNewCharacter(character.clientId, {
-                                    characterName: e.target.value,
-                                })
-                            }
-                            onIsMonsterChange={
-                                isMaster
-                                    ? (checked) => {
-                                          startTransition(() =>
-                                              updateNewCharacter(
-                                                  character.clientId,
-                                                  {
-                                                      isMonster: checked,
-                                                  },
-                                              ),
-                                          );
-                                      }
-                                    : undefined
-                            }
-                            onHpChange={(e) =>
-                                updateNewCharacter(character.clientId, {
-                                    hp: e.target.value
-                                        ? parseInt(e.target.value, 10)
-                                        : undefined,
-                                })
-                            }
-                            onArmorChange={(e) =>
-                                updateNewCharacter(character.clientId, {
-                                    armor: e.target.value
-                                        ? parseInt(e.target.value, 10)
-                                        : undefined,
-                                })
-                            }
-                            onInitiativeChange={(value: number) =>
-                                updateNewCharacter(character.clientId, {
-                                    initiative: value,
-                                })
-                            }
-                            onAddToFight={() => handleAddToFight(character)}
-                            canAddToFight={character.characterName.trim() !== ""}
-                            isAddingToFight={
-                                addingCharacterId === character.clientId
-                            }
-                            onDelete={() => deleteNewCharacter(character.clientId)}
-                        />
-                    </div>
-                ))}
+                    {newCharacters.map((character) => (
+                        <motion.div
+                            key={`draft-${character.clientId}`}
+                            layout
+                            className='w-full'
+                            style={{ overflow: "hidden" }}
+                            initial={{ opacity: 0, y: 12, scale: 0.98, height: 0 }}
+                            animate={{ opacity: 1, y: 0, scale: 1, height: "auto" }}
+                            exit={{ opacity: 0, y: -12, scale: 0.98, height: 0 }}
+                            transition={{
+                                duration: 0.16,
+                                ease: "linear",
+                                layout: { duration: 0.16, ease: "linear" },
+                            }}
+                        >
+                            <NewCard
+                                type='player'
+                                enableViewTransition={false}
+                                cardId={String(character.clientId)}
+                                avatarSrc={character.avatarSrc}
+                                playerName={character.playerName}
+                                characterName={character.characterName}
+                                isMonster={character.isMonster}
+                                showMonsterToggle={isMaster}
+                                hp={character.hp}
+                                armor={character.armor}
+                                initiative={character.initiative}
+                                onPlayerNameChange={(e) =>
+                                    updateNewCharacter(character.clientId, {
+                                        playerName: e.target.value,
+                                    })
+                                }
+                                onCharacterNameChange={(e) =>
+                                    updateNewCharacter(character.clientId, {
+                                        characterName: e.target.value,
+                                    })
+                                }
+                                onIsMonsterChange={
+                                    isMaster
+                                        ? (checked) => {
+                                              startTransition(() =>
+                                                  updateNewCharacter(
+                                                      character.clientId,
+                                                      {
+                                                          isMonster: checked,
+                                                      },
+                                                  ),
+                                              );
+                                          }
+                                        : undefined
+                                }
+                                onHpChange={(e) =>
+                                    updateNewCharacter(character.clientId, {
+                                        hp: e.target.value
+                                            ? parseInt(e.target.value, 10)
+                                            : undefined,
+                                    })
+                                }
+                                onArmorChange={(e) =>
+                                    updateNewCharacter(character.clientId, {
+                                        armor: e.target.value
+                                            ? parseInt(e.target.value, 10)
+                                            : undefined,
+                                    })
+                                }
+                                onInitiativeChange={(value: number) =>
+                                    updateNewCharacter(character.clientId, {
+                                        initiative: value,
+                                    })
+                                }
+                                onAddToFight={() => handleAddToFight(character)}
+                                canAddToFight={character.characterName.trim() !== ""}
+                                isAddingToFight={
+                                    addingCharacterId === character.clientId
+                                }
+                                onDelete={() =>
+                                    deleteNewCharacter(character.clientId)
+                                }
+                            />
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
 
                 {isMaster && (
                     <MonsterFinderPanel
@@ -909,7 +971,9 @@ export default function GameStartingScreen({
                             <Input
                                 placeholder={tGame("fightName")}
                                 defaultValue={fightSceneName}
-                                onChange={(e) => setFightSceneName(e.target.value)}
+                                onChange={(e) =>
+                                    setFightSceneName(e.target.value)
+                                }
                                 className='w-full'
                             />
                             <Button
@@ -920,7 +984,9 @@ export default function GameStartingScreen({
                                 }
                                 variant='primary'
                                 onClick={handleStartFight}
-                                isDisabled={isStartingFight || unitList.length === 0}
+                                isDisabled={
+                                    isStartingFight || unitList.length === 0
+                                }
                                 className='w-full'
                             />
                         </>

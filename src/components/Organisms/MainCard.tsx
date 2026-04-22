@@ -12,6 +12,8 @@ import graphicPattern1 from "../../app/images/graphicPattern1.svg";
 import graphicPattern2 from "../../app/images/graphicPattern2.svg";
 import npcAvatar from "../../app/images/orcIconMale.png";
 import { useTranslations } from "next-intl";
+import { motion } from "motion/react";
+
 type MainCardEffect = {
     id: string;
     name: string;
@@ -71,6 +73,21 @@ type MainCardProps =
 export type Props = MainCardProps;
 
 const MainCard = (props: Props) => {
+    return (
+        <motion.div
+            layout
+            animate={{ opacity: 1 }}
+            transition={{
+                ease: "linear",
+                layout: { duration: 0.3 },
+            }}
+        >
+            <MainCardChild {...props} />
+        </motion.div>
+    );
+};
+
+const MainCardChild = (props: Props) => {
     const {
         isActive,
         showInitiative,
@@ -358,24 +375,25 @@ const MainCard = (props: Props) => {
 
                 {showInitiative &&
                     !onInitiativeChange &&
-                    (initiative !== undefined || isConcentrated !== undefined) && (
-                    <>
-                        <div className='w-full my-3 h-px bg-find-the-path'></div>
-                        <div className='w-full flex flex-col gap-[6px]'>
-                            <Input
-                                placeholder={tCard("initiative")}
-                                iconType='initiative'
-                                defaultValue={initiative?.toString() || ""}
-                                onChange={() => {}}
-                            />
-                            <ToggleInput
-                                checked={isConcentrated}
-                                label={tCard("concentration")}
-                                onChange={onConcentrationChange}
-                            />
-                        </div>
-                    </>
-                )}
+                    (initiative !== undefined ||
+                        isConcentrated !== undefined) && (
+                        <>
+                            <div className='w-full my-3 h-px bg-find-the-path'></div>
+                            <div className='w-full flex flex-col gap-[6px]'>
+                                <Input
+                                    placeholder={tCard("initiative")}
+                                    iconType='initiative'
+                                    defaultValue={initiative?.toString() || ""}
+                                    onChange={() => {}}
+                                />
+                                <ToggleInput
+                                    checked={isConcentrated}
+                                    label={tCard("concentration")}
+                                    onChange={onConcentrationChange}
+                                />
+                            </div>
+                        </>
+                    )}
                 {onRemove && (
                     <>
                         <div className='w-full my-3 h-px bg-find-the-path'></div>
@@ -455,8 +473,7 @@ const MainCard = (props: Props) => {
                     defaultValue={armor?.toString() || ""}
                     onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
-                        if (onArmorChange && !Number.isNaN(v))
-                            onArmorChange(v);
+                        if (onArmorChange && !Number.isNaN(v)) onArmorChange(v);
                     }}
                 />
 
@@ -482,8 +499,7 @@ const MainCard = (props: Props) => {
                                 defaultValue={initiative?.toString() || ""}
                                 onChange={(e) => {
                                     const v = parseInt(e.target.value, 10);
-                                    if (!Number.isNaN(v))
-                                        onInitiativeChange(v);
+                                    if (!Number.isNaN(v)) onInitiativeChange(v);
                                 }}
                             />
                         ) : (

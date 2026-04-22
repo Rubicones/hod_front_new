@@ -8,8 +8,8 @@ import {
     useMemo,
     useState,
     startTransition,
-    ViewTransition,
 } from "react";
+import { motion } from "motion/react";
 import TopToolbar from "@/components/Atoms/TopToolbar";
 import LoadingScreen from "@/components/Atoms/LoadingScreen";
 import MainCard from "@/components/Organisms/MainCard";
@@ -133,13 +133,24 @@ function parseUnits(rawUnits: Record<string, RawGameUnit> = {}): Record<string, 
 }
 
 function parseRoomSnapshot(
-    raw: SnapshotResponse | any,
+    raw: SnapshotResponse | unknown,
     roomIdParam: string,
 ): { units: Record<string, GameUnit>; room: ParsedRoom | null; members: GameMember[] } {
-    const snapshot = (raw?.snapshot ??
-        raw?.data?.snapshot ??
-        raw?.data ??
-        raw) as SnapshotResponse["snapshot"] | undefined;
+    const rawObj = (raw ?? {}) as {
+        snapshot?: SnapshotResponse["snapshot"];
+        data?:
+            | SnapshotResponse["snapshot"]
+            | {
+                  snapshot?: SnapshotResponse["snapshot"];
+              };
+    };
+    const data =
+        rawObj.data && typeof rawObj.data === "object" ? rawObj.data : undefined;
+    const dataSnapshot =
+        data && "snapshot" in data ? data.snapshot : undefined;
+    const snapshot = (rawObj.snapshot ??
+        dataSnapshot ??
+        data) as SnapshotResponse["snapshot"] | undefined;
 
     const units = parseUnits(snapshot?.units ?? {});
     const rawMembersContainer = snapshot?.members as
@@ -568,7 +579,6 @@ export default function RoomPage() {
                         const isOwnUnit =
                             currentMemberCharacterIds.has(unit.id) ||
                             (!!currentUserId && unit.owner_id === currentUserId);
-                        const canPlayerExpand = isOwnUnit;
                         const showCompactForPlayer = !isMaster && !isOwnUnit;
                         const isPeekExpanded = expandedUnitId === unit.id;
                         const showExpanded = isMaster
@@ -611,7 +621,15 @@ export default function RoomPage() {
                                         : undefined
                                 }
                             >
-                                <ViewTransition name={`room-unit-${unit.id}`}>
+                                <motion.div
+                                    layout
+                                    transition={{
+                                        layout: {
+                                            duration: 0.1,
+                                            ease: "linear",
+                                        },
+                                    }}
+                                >
                                     <MainCard
                                         type={
                                             unit.is_monster ? "NPC" : "player"
@@ -688,7 +706,7 @@ export default function RoomPage() {
                                                 : undefined
                                         }
                                     />
-                                </ViewTransition>
+                                </motion.div>
                             </div>
                         );
                     })}
