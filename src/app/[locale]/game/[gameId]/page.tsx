@@ -2,5 +2,5 @@
 
 import GamePage from "../../../game/[gameId]/page";
 
-export default GamePage;
+export default GamePage; 
 
